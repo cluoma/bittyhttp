@@ -10,7 +10,6 @@
 #define BITTYHTTP_SERVER_H
 
 #include <sys/socket.h>
-
 #include "request.h"
 
 /* bhttp_server structures stores information about the current server */

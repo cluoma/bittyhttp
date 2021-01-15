@@ -34,15 +34,10 @@ handle_request(int sock, bhttp_server *server, http_request *request)
         case HTTP_GET:
         {
             char *url = url_path(request);
-            if (strcmp(url, "") == 0)
-            {
-                url = realloc(url, strlen("/cgi-bin/bb.cgi")+1);
-                memset(url, 0, strlen("/cgi-bin/bb.cgi")+1);
-                strcpy(url, "/cgi-bin/bb.cgi");
-            }
+
+            /* Match handler */
 
             char *file_path = calloc(strlen(server->docroot) + strlen(url) + 1, 1);
-            //memset(file_path, 0, strlen(server->docroot) + strlen(url) + 1);
             file_path = strcat(file_path, server->docroot);
             file_path = strcat(file_path, url);
             free(url);
@@ -69,8 +64,6 @@ handle_request(int sock, bhttp_server *server, http_request *request)
 		        char resp_not_found[300];
 		        char *not_found = "<html><p>404 Not Found</p></html>";
 		        sprintf(resp_not_found, "HTTP/1.1 404 Not Found\r\nServer: minihttp\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n%s", (int)strlen(not_found), not_found);
-		        //send(sock, "HTTP/1.1 404 Not Found\r\n", 24, 0);
-                //send(sock, "Content-Length: 0\r\n\r\n", 21, 0);
 		        send(sock, resp_not_found, strlen(resp_not_found), 0);
             }
             free(file_path);
@@ -85,22 +78,24 @@ send_header(int sock, http_request *request, response_header *rh, file_stats *fs
     /* TODO:
      * make this cleaner
      */
-    char headers[1024];
+    bstr headers;
+    bstr_init(&headers);
 
-    sprintf(headers, "%s %s %s\r\nServer: minihttp\r\n", rh->status.version, rh->status.status_code, rh->status.status);
+    bstr_append_printf(&headers, "%s %s %s\r\nServer: bittyhttp\r\n", rh->status.version, rh->status.status_code, rh->status.status);
 
     // Keep Alive
     if (request->keep_alive == HTTP_KEEP_ALIVE)
     {
-        sprintf(headers, "%sConnection: Keep-Alive\r\nKeep-Alive: timeout=5\r\n", headers);
+        bstr_append_printf(&headers, "Connection: Keep-Alive\r\nKeep-Alive: timeout=5\r\n");
     }
     else
     {
-        sprintf(headers, "%sConnection: Close\r\n", headers);
+        bstr_append_printf(&headers, "Connection: Close\r\n");
     }
     // File content
-    sprintf(headers, "%sContent-Type: %s\r\nContent-Length: %lld\r\n\r\n", headers, mime_from_ext(fs->extension), (long long int)fs->bytes);
-    send(sock, headers, strlen(headers), 0);
+    bstr_append_printf(&headers, "Content-Type: %s\r\nContent-Length: %lld\r\n\r\n", mime_from_ext(fs->extension), (long long int)fs->bytes);
+    send(sock, bstr_cstring(&headers), bstr_size(&headers), 0);
+    bstr_free_buf(&headers);
 }
 
 // Needs a lot of work

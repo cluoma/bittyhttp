@@ -8,27 +8,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#include <signal.h>
 #include <limits.h>
-
 #include "request.h"
 
-void
+static void
 print_headers(http_request *request)
 {
-    for (size_t i = 0; i < request->header_fields; i++)
+    bvec *headers = &(request->headers);
+    for (int i = 0; i < bvec_count(headers); i++)
     {
-        printf("%s: %s\n", request->header_field[i], request->header_value[i]);
+        http_header *h = (http_header *)bvec_get(headers, i);
+        printf("%s: %s\n", bstr_cstring(&(h->field)), bstr_cstring(&(h->value)));
     }
+    printf("\n");
 }
 
 void
@@ -138,7 +134,7 @@ receive_data(int sock, http_parser *parser)
     // Was a keep-alive requested?
     set_keep_alive(request);
 
-    //print_headers(request);
+    print_headers(request);
 
     return;
 
@@ -178,7 +174,7 @@ read_chunk(int sock, char **str, ssize_t t_recvd, size_t chunk_size)
 
     tmp[t_recvd+n_recvd] = '\0';
     (*str) = tmp;
-    printf("postdata: %s\n", (*str));
+//    printf("postdata: %s\n", (*str));
     return n_recvd;
 }
 
@@ -186,40 +182,58 @@ read_chunk(int sock, char **str, ssize_t t_recvd, size_t chunk_size)
 void
 set_keep_alive(http_request *request)
 {
-    for (size_t i = 0; i < request->header_fields; i++)
-    {
-        if (strncasecmp(request->header_field[i], "Connection", request->header_field_len[i]) == 0)
-        {
-            if (strncasecmp(request->header_value[i], "keep-alive", request->header_value_len[i]) == 0)
-            {
-                request->keep_alive = HTTP_KEEP_ALIVE;
-            }
-            else
-            {
-                request->keep_alive = HTTP_CLOSE;
-            }
-            return;
-        }
-    }
+//    for (size_t i = 0; i < request->header_fields; i++)
+//    {
+//        if (strncasecmp(request->header_field[i], "Connection", request->header_field_len[i]) == 0)
+//        {
+//            if (strncasecmp(request->header_value[i], "keep-alive", request->header_value_len[i]) == 0)
+//            {
+//                request->keep_alive = HTTP_KEEP_ALIVE;
+//            }
+//            else
+//            {
+//                request->keep_alive = HTTP_CLOSE;
+//            }
+//            return;
+//        }
+//    }
     request->keep_alive = HTTP_CLOSE;
-    return;
 }
 
-// Return the header value for a given header key
-// Caller must free afterwards
-char *
-request_header_val(http_request *request, const char*header_key)
+//// Return the header value for a given header key
+//// Caller must free afterwards
+//char *
+//request_header_val(http_request *request, const char*header_key)
+//{
+//    for (size_t i = 0; i < request->header_fields; i++)
+//    {
+//        if (strncasecmp(request->header_field[i], header_key, request->header_field_len[i]) == 0)
+//        {
+//            char *header_val = calloc(1, request->header_value_len[i] + 1);
+//            memcpy(header_val, request->header_value[i], request->header_value_len[i]);
+//            return header_val;
+//        }
+//    }
+//    return NULL;
+//}
+
+static http_header *
+http_header_new()
 {
-    for (size_t i = 0; i < request->header_fields; i++)
-    {
-        if (strncasecmp(request->header_field[i], header_key, request->header_field_len[i]) == 0)
-        {
-            char *header_val = calloc(1, request->header_value_len[i] + 1);
-            memcpy(header_val, request->header_value[i], request->header_value_len[i]);
-            return header_val;
-        }
-    }
-    return NULL;
+    http_header *h = malloc(sizeof(http_header));
+    if (h == NULL)
+        return NULL;
+    bstr_init(&(h->field));
+    bstr_init(&(h->value));
+    return h;
+}
+
+static void
+http_header_free(http_header *h)
+{
+    bstr_free_buf(&(h->field));
+    bstr_free_buf(&(h->value));
+    free(h);
 }
 
 void
@@ -228,17 +242,10 @@ init_request(http_request *request)
     request->keep_alive = HTTP_KEEP_ALIVE;
     request->request = NULL;
     request->request_len = 0;
-//    request->uri = NULL;
-//    request->uri_len = 0;
     bstr_init(&(request->uri));
     request->content_length = 0;
     request->header_length = 0;
-    request->header_fields = 0;
-    request->header_values = 0;
-    request->header_field = NULL;
-    request->header_field_len = NULL;
-    request->header_value = NULL;
-    request->header_value_len = NULL;
+    bvec_init(&(request->headers), (void (*)(void *)) &http_header_free);
     request->body = NULL;
     request->body_len = 0;
 
@@ -251,36 +258,12 @@ free_request(http_request *request)
     if (request->request != NULL)
         free(request->request);
 
-    // Free header fields (key)
-    if (request->header_fields > 0)
-    {
-        for (int i = 0; i < request->header_fields; i++)
-        {
-            free(request->header_field[i]);
-        }
-        free(request->header_field);
-    }
-    if (request->header_field_len != NULL)
-        free(request->header_field_len);
-
-    // Free header values (val)
-    if (request->header_fields > 0)
-    {
-        for (int i = 0; i < request->header_fields; i++)
-        {
-            free(request->header_value[i]);
-        }
-        free(request->header_value);
-    }
-    if (request->header_value_len != NULL)
-        free(request->header_value_len);
+    bvec_free_contents(&(request->headers));
 
     // Free request body
     if (request->body != NULL)
         free(request->body);
 
-//    if (request->uri != NULL)
-//        free(request->uri);
     bstr_free_buf(&(request->uri));
 }
 
@@ -298,15 +281,10 @@ int
 url_cb(http_parser* parser, const char *at, size_t length)
 {
     http_request *request = parser->data;
-
-    bstr_append_cstring(&(request->uri), at, length);
-//    request->uri = calloc(1, length + 1);
-//    strncat(request->uri, at, length);
-//    //request->uri = at;
-//    request->uri_len = length;
-
-    http_parser_parse_url(at, length, 1, &(request->parser_url));
-
+    if (bstr_append_cstring(&(request->uri), at, length) != BS_SUCCESS)
+        return 1;
+    if (http_parser_parse_url(at, length, 0, &(request->parser_url)) != 0)
+        return 1;
     return 0;
 }
 
@@ -314,15 +292,13 @@ int
 header_field_cb(http_parser* parser, const char *at, size_t length)
 {
     http_request *request = parser->data;
-
-    request->header_field = realloc(request->header_field, sizeof(char*)*(request->header_fields + 1));
-    request->header_field_len = realloc(request->header_field_len, sizeof(size_t)*(request->header_fields + 1));
-    request->header_field[request->header_fields] = calloc(1, length + 1);
-    memcpy(request->header_field[request->header_fields], at, length);
-    request->header_field_len[request->header_fields] = length;
-
-    request->header_fields += 1;
-
+    bvec *headers = &(request->headers);
+    http_header *h = http_header_new();
+    if (h == NULL)
+        return 1;
+    if (bstr_append_cstring(&(h->field), at, length) != BS_SUCCESS)
+        return 1;
+    bvec_add(headers, h);
     return 0;
 }
 
@@ -330,16 +306,9 @@ int
 header_value_cb(http_parser* parser, const char *at, size_t length)
 {
     http_request *request = parser->data;
-
-    request->header_value = realloc(request->header_value, sizeof(char*)*(request->header_values + 1));
-    request->header_value_len = realloc(request->header_value_len, sizeof(size_t)*(request->header_values + 1));
-    request->header_value[request->header_values] = calloc(1, length + 1);
-    memcpy(request->header_value[request->header_values], at, length);
-    //request->header_value[request->header_values] = at;
-    request->header_value_len[request->header_values] = length;
-
-    request->header_values += 1;
-
+    bvec *headers = &(request->headers);
+    http_header *h = (http_header *)bvec_get(headers, bvec_count(headers)-1);
+    bstr_append_cstring(&(h->value), at, length);
     return 0;
 }
 
@@ -366,10 +335,8 @@ body_cb(http_parser* parser, const char *at, size_t length)
     if (length == 0) return 0;
 
     http_request *request = parser->data;
-
     request->body = realloc(request->body, request->body_len + length);
     memcpy(request->body + request->body_len, at, length);
     request->body_len += length;
-
     return 0;
 }

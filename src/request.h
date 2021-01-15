@@ -14,12 +14,18 @@
 #include <string.h>
 #include "http_parser.h"
 #include "bittystring.h"
+#include "bittyvec.h"
 
 #define REQUEST_BUF_SIZE 500
 
 #define HTTP_KEEP_ALIVE     0
 #define HTTP_CLOSE          1
 #define HTTP_ERROR          2
+
+typedef struct http_header {
+    bstr field;
+    bstr value;
+} http_header;
 
 /*
  * Struct is populated when parsing
@@ -32,9 +38,7 @@ struct http_request {
 
     // First line
     int method;
-//    char *uri;
     bstr uri;
-//    size_t uri_len;
     struct http_parser_url parser_url;
 
     // HTTP version
@@ -48,12 +52,7 @@ struct http_request {
     unsigned int keep_alive;
 
     // Headers
-    size_t header_fields;
-    size_t header_values;
-    char **header_field;
-    size_t *header_field_len;
-    char **header_value;
-    size_t *header_value_len;
+    bvec headers;
 
     // Body
     char *body;
@@ -62,7 +61,7 @@ struct http_request {
 
 /*
  * Request parsing callback functions
- * all callbacks return 0 on succes, -1 otherwise
+ * all callbacks return 0 on success, non-zero otherwise
  */
 int start_cb(http_parser* parser);
 int url_cb(http_parser* parser, const char *at, size_t length);
@@ -74,8 +73,7 @@ int body_cb(http_parser* parser, const char *at, size_t length);
 /* Set keep-alive status from client request */
 void set_keep_alive(http_request *request);
 
-char *
-request_header_val(http_request *request, const char*header_key);
+char *request_header_val(http_request *request, const char*header_key);
 
 /* Free memory used by http_request */
 void init_request(http_request *request);

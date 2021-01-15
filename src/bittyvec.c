@@ -51,9 +51,9 @@ bvec_get(bvec* vec, int i)
 }
 
 void
-bvec_free(bvec* vec)
+bvec_free_contents(bvec *vec)
 {
-    // Free contents
+    /* Free contents */
     for (int i = 0; i < vec->size; i++)
     {
         if (vec->f == NULL)
@@ -64,9 +64,13 @@ bvec_free(bvec* vec)
         }
     }
 
-    // Free array
+    /* Free array */
     if (vec->data != NULL) free(vec->data);
+}
 
-    // Free itself
+void
+bvec_free(bvec* vec)
+{
+    bvec_free_contents(vec);
     free(vec);
 }
