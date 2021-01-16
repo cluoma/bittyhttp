@@ -15,6 +15,7 @@
 #include <limits.h>
 #include "request.h"
 
+
 static void
 print_headers(http_request *request)
 {
@@ -57,7 +58,7 @@ receive_data(int sock, http_parser *parser)
     struct timeval timeout;
     FD_ZERO (&set);
     FD_SET (sock, &set);
-    timeout.tv_sec = 5; //1 seconds
+    timeout.tv_sec = 50; //1 seconds
     timeout.tv_usec = 50000; //0.4 seconds
 
     // Read up to end of header received
@@ -66,17 +67,20 @@ receive_data(int sock, http_parser *parser)
     {
         t_recvd += n_recvd;
 
+        http_parser_execute(parser, &settings, str+t_recvd-n_recvd, n_recvd);
+        print_headers(request);
+
         // Reinitialize timeout and select set
-	FD_ZERO(&set);
-	FD_SET(sock, &set);
-        timeout.tv_sec = 5;
+	    FD_ZERO(&set);
+	    FD_SET(sock, &set);
+        timeout.tv_sec = 50;
         timeout.tv_usec = 50000;
 
         // Got end of headers, break out
         char *tmp;
         if ((tmp = strstr(str, "\r\n\r\n")) != NULL) {
             request->header_length = tmp - str + 4;
-            http_parser_execute(parser, &settings, str, request->header_length);
+//            http_parser_execute(parser, &settings, str, request->header_length);
             break;
         }
     }
@@ -84,7 +88,7 @@ receive_data(int sock, http_parser *parser)
     // Reinitialize timeout and select set
     FD_ZERO(&set);
     FD_SET(sock, &set);
-    timeout.tv_sec = 5;
+    timeout.tv_sec = 50;
     timeout.tv_usec = 50000;
 
     // Do we need more data based on content-length?
@@ -97,7 +101,7 @@ receive_data(int sock, http_parser *parser)
         // Reinitialize timeout and select set
 	FD_ZERO(&set);
 	FD_SET(sock, &set);
-        timeout.tv_sec = 5;
+        timeout.tv_sec = 50;
         timeout.tv_usec = 50000;
     }
 
@@ -293,12 +297,20 @@ header_field_cb(http_parser* parser, const char *at, size_t length)
 {
     http_request *request = parser->data;
     bvec *headers = &(request->headers);
-    http_header *h = http_header_new();
-    if (h == NULL)
-        return 1;
+
+    int num_headers = bvec_count(headers);
+    http_header *h = num_headers > 0 ? bvec_get(headers, num_headers-1) : NULL;
+    if (h == NULL || bstr_size(&(h->value)) > 0)
+    {
+        h = http_header_new();
+        if (h == NULL)
+            return 1;
+        bvec_add(headers, h);
+    }
+
     if (bstr_append_cstring(&(h->field), at, length) != BS_SUCCESS)
         return 1;
-    bvec_add(headers, h);
+
     return 0;
 }
 
