@@ -26,7 +26,6 @@ bhttp_server
 http_server_new()
 {
     bhttp_server server = HTTP_SERVER_DEFAULT;
-    printf("");
     return server;
 }
 
