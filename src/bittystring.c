@@ -221,8 +221,8 @@ bstr_append_cstring(bstr *bs, const char *cs, uint64_t len)
     }
     printf("[23]: %" PRIu64 "\n", bs->capacity);
 #endif
-    if (len <= 0)
-        return BS_FAIL;
+    if (len == 0) return BS_SUCCESS;
+    if (len <  0) return BS_FAIL;
 
     if (bstr_expand_by(bs, len) != BS_SUCCESS)
         return BS_FAIL;
@@ -254,8 +254,8 @@ bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len)
     }
     printf("[23]: %" PRIu64 "\n", bs->capacity);
 #endif
-    if (len <= 0)
-        return BS_FAIL;
+    if (len == 0) return BS_SUCCESS;
+    if (len <  0) return BS_FAIL;
 
     if (bstr_expand_by(bs, len) != BS_SUCCESS)
         return BS_FAIL;
