@@ -30,25 +30,24 @@ typedef struct http_header {
  */
 typedef struct http_request http_request;
 struct http_request {
-    // First line
+    /* first line */
     int method;
     bstr uri;
-    struct http_parser_url parser_url;
-
-    // HTTP version
-    char *version;
-    size_t version_len;
-
-    // Keep-alive
-    unsigned int keep_alive;
-    unsigned int done;
-
-    // Headers
+//    char *version;
+//    size_t version_len;
+    /* headers */
     bvec headers;
+    /* body */
+    bstr body;
 
-    // Body
-    char *body;
-    size_t body_len;
+    /* parser */
+    struct http_parser parser;
+    struct http_parser_settings settings;
+    struct http_parser_url parser_url;
+    /* keep-alive */
+    unsigned int keep_alive;
+    /* request is done being parsed */
+    unsigned int done;
 };
 
 /*
@@ -70,6 +69,6 @@ void init_request(http_request *request);
 void free_request(http_request *request);
 
 /* Main functions to read request */
-void receive_data(int sock, http_parser *parser);
+void receive_data(http_request *request, int sock);
 
 #endif /* BITTYHTTP_REQUEST_H */

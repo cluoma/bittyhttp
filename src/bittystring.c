@@ -356,7 +356,7 @@ bstr_prepend_printf(bstr *bs, const char * format, ...)
 }
 
 void
-bstr_free_buf(bstr *bs)
+bstr_free_contents(bstr *bs)
 {
     if (!BSTR_IS_SSO(bs) && bs->ls.buf)
         BS_FREE(bs->ls.buf);
@@ -365,7 +365,7 @@ bstr_free_buf(bstr *bs)
 void
 bstr_free(bstr *bs)
 {
-    bstr_free_buf(bs);
+    bstr_free_contents(bs);
     BS_FREE(bs);
 }
 

@@ -39,27 +39,19 @@ typedef union
     struct bstr_short_string ss;
 } bstr;
 
-/*
- * Creators
- */
+/* creators */
 bstr *bstr_new(void);
 bstr * bstr_new_from_cstring(const char *cs, uint64_t len);
 void bstr_init(bstr *bs);
 const char * bstr_error_string(bstr_ret_val r);
-/*
- * Freers
- */
+/* freers */
 void bstr_free(bstr *bs);
-void bstr_free_buf(bstr *bs);
-/*
- * Accessors
- */
+void bstr_free_contents(bstr *bs);
+/* accessors */
 uint64_t bstr_size(bstr *bs);
 uint64_t bstr_capacity(bstr *bs);
 const char * bstr_cstring(bstr *bs);
-/*
- * Modifiers
- */
+/* modifiers */
 int bstr_append_cstring(bstr *bs, const char *cs, uint64_t len);
 int bstr_append_printf(bstr *bs, const char * format, ...);
 int bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len);

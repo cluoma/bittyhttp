@@ -44,14 +44,14 @@ handle_request(int sock, bhttp_server *server, http_request *request)
 
             file_stats fs = get_file_stats(file_path);
 
-            // File found and it's a directory, look for default file
+            /* found directory, look for default file */
             if (fs.found && fs.isdir) {
                 file_path = realloc(file_path, strlen(file_path) + strlen(server->default_file) + 2);
                 file_path = strcat(file_path, "/");
                 file_path = strcat(file_path, server->default_file);
                 fs = get_file_stats(file_path);
             }
-
+            /* found file */
             if (fs.found && !fs.isdir)
             {
                 // Add file information to header
@@ -59,6 +59,7 @@ handle_request(int sock, bhttp_server *server, http_request *request)
                 send_header(sock, request, &rh, &fs);
                 send_file(sock, file_path, &fs, server->use_sendfile);
             }
+            /* not found */
             else
             {
 		        char resp_not_found[300];
@@ -95,7 +96,7 @@ send_header(int sock, http_request *request, response_header *rh, file_stats *fs
     // File content
     bstr_append_printf(&headers, "Content-Type: %s\r\nContent-Length: %lld\r\n\r\n", mime_from_ext(fs->extension), (long long int)fs->bytes);
     send(sock, bstr_cstring(&headers), bstr_size(&headers), 0);
-    bstr_free_buf(&headers);
+    bstr_free_contents(&headers);
 }
 
 // Needs a lot of work
@@ -160,7 +161,6 @@ send_file(int sock, char *file_path, file_stats *fs, int use_sendfile)
         free(buf);
         fclose(f);
     }
-
 }
 
 // Needs a lot of work
@@ -211,9 +211,6 @@ url_path(http_request *request)
 {
     if ((request->parser_url.field_set >> UF_PATH) & 1) {
         char *path = malloc(request->parser_url.field_data[UF_PATH].len + 1);
-//        html_to_text(request->uri+(request->parser_url.field_data[UF_PATH].off),
-//                     path,
-//                     request->parser_url.field_data[UF_PATH].len);
         html_to_text(bstr_cstring(&(request->uri))+(request->parser_url.field_data[UF_PATH].off),
                      path,
                      request->parser_url.field_data[UF_PATH].len);

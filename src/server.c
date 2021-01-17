@@ -120,26 +120,16 @@ http_server_run(bhttp_server *server)
         if (!fork()) { // this is the child process
             close(server->sock); // child doesn't need the listener
 
-            // Init http parser and request structures
-            http_parser *parser;
             http_request request;
             init_request(&request);
-
-            // Recieve requests from client while keep-alive requested
+            /* handle request while keep-alive requested */
             while (request.keep_alive == HTTP_KEEP_ALIVE)
             {
-                // init http parser
-                parser = malloc(sizeof(http_parser));
-                http_parser_init(parser, HTTP_REQUEST);
-
-                // Create request data, add it to parser
+                /* read a new request */
                 init_request(&request);
-                parser->data = &request;
+                receive_data(&request, conn_fd);
 
-                // read request data from client
-                receive_data(conn_fd, parser);
-
-                // Handle request if no error returned
+                /* handle request if no error returned */
                 if (request.keep_alive != HTTP_ERROR)
                 {
                     //write_log(server, &request, s);
@@ -147,10 +137,9 @@ http_server_run(bhttp_server *server)
                 }
 
                 free_request(&request);
-                free(parser);
             }
 
-            // Cleanup
+            /* cleanup */
             close(conn_fd);
             exit(0);
         }

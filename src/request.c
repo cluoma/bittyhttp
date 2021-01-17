@@ -15,7 +15,7 @@
 #include <limits.h>
 #include "request.h"
 
-#define REQUEST_BUF_SIZE 2
+#define REQUEST_BUF_SIZE 1024
 
 static void
 print_headers(http_request *request)
@@ -29,9 +29,9 @@ print_headers(http_request *request)
     printf("\n");
 }
 
-/* reads up buf_size from sock into buf and return bytes read */
 static ssize_t
 read_chunk(int sock, char *buf, size_t buf_size)
+/* reads up to buf_size from sock into buf and return bytes read */
 {
     ssize_t n_recvd = recv(sock, buf, buf_size, 0);
 
@@ -50,22 +50,11 @@ read_chunk(int sock, char *buf, size_t buf_size)
 }
 
 void
-receive_data(int sock, http_parser *parser)
+receive_data(http_request *request, int sock)
 {
-    http_request *request = parser->data;
-    init_request(request);
-
-    // Init http parser settings
-    http_parser_settings settings;
-    http_parser_settings_init(&settings);
-    settings.on_message_begin    = start_cb;
-    settings.on_url              = url_cb;
-    settings.on_header_field     = header_field_cb;
-    settings.on_header_value     = header_value_cb;
-    settings.on_headers_complete = header_end_cb;
-    settings.on_body             = body_cb;
-    settings.on_message_complete = message_end_cb;
-
+    http_parser *parser = &(request->parser);
+    http_parser_settings *settings = &(request->settings);
+    char buf[REQUEST_BUF_SIZE];
     ssize_t n_recvd = 0;
     int sel;
 
@@ -77,13 +66,11 @@ receive_data(int sock, http_parser *parser)
     timeout.tv_sec = 5; //1 seconds
     timeout.tv_usec = 50000; //0.4 seconds
 
-    char buf[REQUEST_BUF_SIZE];
-
     // Read up to end of header received
     while((sel = select(sock+1, &set, NULL, NULL, &timeout) > 0) &&
           (n_recvd = read_chunk(sock, buf, REQUEST_BUF_SIZE)) > 0)
     {
-        http_parser_execute(parser, &settings, buf, n_recvd);
+        http_parser_execute(parser, settings, buf, n_recvd);
         if (parser->http_errno != HPE_OK)
         {
             printf("\nPARSER ERROR\n%s\n", http_errno_description(parser->http_errno));
@@ -118,7 +105,7 @@ receive_data(int sock, http_parser *parser)
     return;
 
 bad:
-    request->keep_alive = HTTP_CLOSE;
+    request->keep_alive = HTTP_ERROR;
 }
 
 // Return the header value for a given header key
@@ -157,9 +144,27 @@ http_header_new()
 static void
 http_header_free(http_header *h)
 {
-    bstr_free_buf(&(h->field));
-    bstr_free_buf(&(h->value));
+    bstr_free_contents(&(h->field));
+    bstr_free_contents(&(h->value));
     free(h);
+}
+
+static void
+init_parser(http_request *request)
+{
+    /* main parser */
+    http_parser_init(&(request->parser), HTTP_REQUEST);
+    /* url parser */
+    http_parser_url_init(&(request->parser_url));
+    /* callbacks */
+    http_parser_settings_init(&(request->settings));
+    request->settings.on_message_begin    = start_cb;
+    request->settings.on_url              = url_cb;
+    request->settings.on_header_field     = header_field_cb;
+    request->settings.on_header_value     = header_value_cb;
+    request->settings.on_headers_complete = header_end_cb;
+    request->settings.on_body             = body_cb;
+    request->settings.on_message_complete = message_end_cb;
 }
 
 void
@@ -168,21 +173,18 @@ init_request(http_request *request)
     request->keep_alive = HTTP_KEEP_ALIVE;
     bstr_init(&(request->uri));
     bvec_init(&(request->headers), (void (*)(void *)) &http_header_free);
-    request->body = NULL;
-    request->body_len = 0;
+    bstr_init(&(request->body));
     request->done = 0;
-
-    http_parser_url_init(&(request->parser_url));
+    init_parser(request);
+    request->parser.data = request;
 }
 
 void
 free_request(http_request *request)
 {
-    bstr_free_buf(&(request->uri));
+    bstr_free_contents(&(request->uri));
     bvec_free_contents(&(request->headers));
-    /* free request body */
-    if (request->body != NULL)
-        free(request->body);
+    bstr_free_contents(&(request->body));
 }
 
 
@@ -251,7 +253,7 @@ header_end_cb(http_parser* parser)
                               &(request->parser_url)) != 0)
         return 1;
 
-    /* Get http method */
+    /* get http method */
     request->method = parser->method;
     /* check keep-live */
     if (http_should_keep_alive(parser) == 0)
@@ -267,9 +269,7 @@ body_cb(http_parser* parser, const char *at, size_t length)
 {
     if (length == 0) return 0;
     http_request *request = parser->data;
-    request->body = realloc(request->body, request->body_len + length);
-    memcpy(request->body + request->body_len, at, length);
-    request->body_len += length;
+    bstr_append_cstring(&(request->body), at, length);
     return 0;
 }
 
