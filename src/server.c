@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include "server.h"
 #include "respond.h"
