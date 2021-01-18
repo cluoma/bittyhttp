@@ -85,7 +85,7 @@ send_header(int sock, bhttp_request *request, response_header *rh, file_stats *f
     bstr_append_printf(&headers, "%s %s %s\r\nServer: bittyhttp\r\n", rh->status.version, rh->status.status_code, rh->status.status);
 
     // Keep Alive
-    if (request->keep_alive == HTTP_KEEP_ALIVE)
+    if (request->keep_alive == BHTTP_KEEP_ALIVE)
     {
         bstr_append_printf(&headers, "Connection: Keep-Alive\r\nKeep-Alive: timeout=5\r\n");
     }

@@ -106,10 +106,10 @@ do_connection(void * arg)
     {
         /* read a new request */
         init_request(&request);
-        receive_data(&request, conn_fd);
+        int rcve = receive_data(&request, conn_fd);
 
         /* handle request if no error returned */
-        if (request.keep_alive == HTTP_ERROR)
+        if (rcve != BHTTP_REQ_OK)
         {
             free_request(&request);
             break;
@@ -120,7 +120,7 @@ do_connection(void * arg)
         }
         //write_log(server, &request, s);
         free_request(&request);
-        if (request.keep_alive == HTTP_CLOSE)
+        if (request.keep_alive == BHTTP_CLOSE)
             break;
     }
     /* cleanup */

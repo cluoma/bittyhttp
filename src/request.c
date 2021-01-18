@@ -8,7 +8,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -30,6 +29,7 @@ int message_end_cb(http_parser* parser);
 
 static void
 print_headers(bhttp_request *request)
+/* prints headers for debugging */
 {
     bvec *headers = &(request->headers);
     for (int i = 0; i < bvec_count(headers); i++)
@@ -40,27 +40,40 @@ print_headers(bhttp_request *request)
     printf("\n");
 }
 
-static ssize_t
-read_chunk(int sock, char *buf, size_t buf_size)
-/* reads up to buf_size from sock into buf and return bytes read */
+//static ssize_t
+//read_chunk(int sock, char *buf, size_t buf_size)
+///* reads up to buf_size from sock into buf and return bytes read */
+//{
+//    ssize_t n_recvd = recv(sock, buf, buf_size, 0);
+//    if (n_recvd == -1) { // recv errorr
+//        perror("RECV");
+//        fprintf(stderr, "n_recvd: %d\n", (int)n_recvd);
+//        return n_recvd;
+//    }
+//    if (n_recvd == 0) // Connection closed by client
+//    {
+//        return n_recvd;
+//    }
+//
+//    return n_recvd;
+//}
+
+static int
+wait_for_sock(int sock)
+/* waits on socket to be ready for up to timeout before returning */
 {
-    ssize_t n_recvd = recv(sock, buf, buf_size, 0);
+    fd_set set;
+    struct timeval timeout;
+    FD_ZERO (&set);
+    FD_SET (sock, &set);
+    timeout.tv_sec = TIMEOUT_SECONDS;
+    timeout.tv_usec = 0;
 
-    if (n_recvd == 0) // Connection closed by client
-    {
-        return n_recvd;
-    }
-
-    if (n_recvd == -1) { // recv errorr
-        perror("RECV");
-        fprintf(stderr, "n_recvd: %d\n", (int)n_recvd);
-        return n_recvd;
-    }
-
-    return n_recvd;
+    int sel = select(sock+1, &set, NULL, NULL, &timeout);
+    return sel;
 }
 
-void
+int
 receive_data(bhttp_request *request, int sock)
 {
     http_parser *parser = &(request->parser);
@@ -69,54 +82,41 @@ receive_data(bhttp_request *request, int sock)
     ssize_t n_recvd = 0;
     int sel;
 
-    // Structures for select
-    fd_set set;
-    struct timeval timeout;
-    FD_ZERO (&set);
-    FD_SET (sock, &set);
-    timeout.tv_sec = 5; //1 seconds
-    timeout.tv_usec = 50000; //0.4 seconds
-
-    // Read up to end of header received
-    while((sel = select(sock+1, &set, NULL, NULL, &timeout) > 0) &&
-          (n_recvd = read_chunk(sock, buf, REQUEST_BUF_SIZE)) > 0)
+    /* wait on socket, read chunk, parse, repeat */
+    while((sel = wait_for_sock(sock) > 0) &&
+          (n_recvd = recv(sock, buf, REQUEST_BUF_SIZE, 0)) > 0)
     {
         http_parser_execute(parser, settings, buf, n_recvd);
         if (parser->http_errno != HPE_OK)
         {
-            printf("\nPARSER ERROR\n%s\n", http_errno_description(parser->http_errno));
-            goto bad;
+            fprintf(stderr, "parser error: %s\n", http_errno_description(parser->http_errno));
+            return BHTTP_REQ_ERROR;
         }
         //print_headers(request);
 
         if (request->done)
             break;
-
-        // Reinitialize timeout and select set
-	    FD_ZERO(&set);
-	    FD_SET(sock, &set);
-        timeout.tv_sec = 5;
-        timeout.tv_usec = 50000;
     }
 
-    /* Something went wrong */
+    /* why did we break */
     if (sel == 0)
     {
-        perror("receive data timeout");
-        goto bad;
+        perror("select timeout");
+        return BHTTP_REQ_ERROR;
     }
-    if (sel < 0) {
-        perror("receive data select error");
-        goto bad;
+    else if (sel < 0) {
+        perror("select error");
+        return BHTTP_REQ_ERROR;
     }
-    if (n_recvd <= 0) {
-        perror("receive data amount error or client closed connection");
-        goto bad;
+    else if (n_recvd == 0) {
+        perror("recv client closed connection");
+        return BHTTP_REQ_ERROR;
     }
-    return;
-
-bad:
-    request->keep_alive = HTTP_ERROR;
+    else if (n_recvd < 0) {
+        perror("recv error");
+        return BHTTP_REQ_ERROR;
+    }
+    return BHTTP_REQ_OK;
 }
 
 // Return the header value for a given header key
@@ -181,7 +181,7 @@ init_parser(bhttp_request *request)
 void
 init_request(bhttp_request *request)
 {
-    request->keep_alive = HTTP_CLOSE;
+    request->keep_alive = BHTTP_CLOSE;
     bstr_init(&(request->uri));
     bvec_init(&(request->headers), (void (*)(void *)) &http_header_free);
     bstr_init(&(request->body));
@@ -227,7 +227,7 @@ header_field_cb(http_parser* parser, const char *at, size_t length)
 
     int num_headers = bvec_count(headers);
     bhttp_header *h = num_headers > 0 ? bvec_get(headers, num_headers - 1) : NULL;
-    /* if first header, or last cb was a value, make a new field */
+    /* if this is first header, or last cb was a value, make a new field */
     if (h == NULL || bstr_size(&(h->value)) > 0)
     {
         h = http_header_new();
@@ -249,7 +249,8 @@ header_value_cb(http_parser* parser, const char *at, size_t length)
     bhttp_request *request = parser->data;
     bvec *headers = &(request->headers);
     bhttp_header *h = (bhttp_header *)bvec_get(headers, bvec_count(headers) - 1);
-    bstr_append_cstring(&(h->value), at, length);
+    if (bstr_append_cstring(&(h->value), at, length) != BS_SUCCESS)
+        return 1;
     return 0;
 }
 
@@ -265,12 +266,12 @@ header_end_cb(http_parser* parser)
         return 1;
 
     /* get http method */
-    request->method = parser->method;
+    request->method = (int)parser->method;
     /* check keep-live */
     if (http_should_keep_alive(parser) == 0)
-        request->keep_alive = HTTP_CLOSE;
+        request->keep_alive = BHTTP_CLOSE;
     else
-        request->keep_alive = HTTP_KEEP_ALIVE;
+        request->keep_alive = BHTTP_KEEP_ALIVE;
 
     return 0;
 }
@@ -280,7 +281,8 @@ body_cb(http_parser* parser, const char *at, size_t length)
 {
     if (length == 0) return 0;
     bhttp_request *request = parser->data;
-    bstr_append_cstring(&(request->body), at, length);
+    if (bstr_append_cstring(&(request->body), at, length) != BS_SUCCESS)
+        return 1;
     return 0;
 }
 

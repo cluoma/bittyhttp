@@ -16,9 +16,15 @@
 #include "bittystring.h"
 #include "bittyvec.h"
 
-#define HTTP_KEEP_ALIVE     0
-#define HTTP_CLOSE          1
-#define HTTP_ERROR          2
+#define BHTTP_KEEP_ALIVE     0
+#define BHTTP_CLOSE          1
+
+#define TIMEOUT_SECONDS     5
+
+typedef enum {
+    BHTTP_REQ_OK = 0,
+    BHTTP_REQ_ERROR
+} bhttp_request_ret;
 
 typedef struct bhttp_header {
     bstr field;
@@ -52,7 +58,7 @@ void init_request(bhttp_request *request);
 void free_request(bhttp_request *request);
 
 /* main functions to read request */
-void receive_data(bhttp_request *request, int sock);
+int receive_data(bhttp_request *request, int sock);
 
 /* returns a pointer to the value of header_key */
 const char *request_header_val(bhttp_request *request, const char *header_key);
