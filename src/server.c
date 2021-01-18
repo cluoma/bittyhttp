@@ -23,6 +23,16 @@
 #include "respond.h"
 #include "http_parser.h"
 
+static void *
+get_in_addr(struct sockaddr *sa)
+/* get network address structure */
+{
+    if (sa->sa_family == AF_INET) {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    }
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
 bhttp_server
 http_server_new()
 {
@@ -83,14 +93,14 @@ fail_start:
     return -1;
 }
 
-void *
+static void *
 do_connection(void * arg)
 {
     //printf("New thread...\n");
     bhttp_server *server = ((thread_args *)arg)->server;
     int conn_fd = ((thread_args *)arg)->sock;
 
-    http_request request;
+    bhttp_request request;
     /* handle request while keep-alive requested */
     while (1)
     {
@@ -106,9 +116,9 @@ do_connection(void * arg)
         }
         else
         {
-            //write_log(server, &request, s);
             handle_request(conn_fd, server, &request);
         }
+        //write_log(server, &request, s);
         free_request(&request);
         if (request.keep_alive == HTTP_CLOSE)
             break;
@@ -121,25 +131,16 @@ do_connection(void * arg)
 
 void
 http_server_run(bhttp_server *server)
+/* start accepting connections */
 {
-    // setup SIGCHLD signal handling
-    struct sigaction sa;
-    sa.sa_handler = sigchld_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("sigaction");
-        exit(1);
-    }
-
-    // Client's address information
+    /* file descriptor for accepted connections */
+    int conn_fd;
+    /* client address information */
     struct sockaddr_storage their_addr;
     socklen_t sin_size;
     char s[INET6_ADDRSTRLEN];
 
-    int conn_fd;
-
-    // Wait for connections forever
+    /* wait for connections forever */
     while(1) {
         sin_size = sizeof their_addr;
         //printf("Waiting on connection...\n");
@@ -169,28 +170,8 @@ http_server_run(bhttp_server *server)
     }
 }
 
-// get sockaddr, IPv4 or IPv6:
-void *
-get_in_addr(struct sockaddr *sa)
-{
-    if (sa->sa_family == AF_INET) {
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-    }
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-// Reap zombie processes
 void
-sigchld_handler(int s)
-{
-    int saved_errno = errno;
-    while(waitpid(-1, NULL, WNOHANG) > 0);
-    errno = saved_errno;
-}
-
-//
-void
-write_log(bhttp_server *server, http_request *request, char *client_ip)
+write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
 {
     FILE *f = fopen(server->log_file, "a"); // open for writing
     if (f == NULL) return;

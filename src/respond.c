@@ -24,7 +24,7 @@
 #include "mime_types.h"
 
 void
-handle_request(int sock, bhttp_server *server, http_request *request)
+handle_request(int sock, bhttp_server *server, bhttp_request *request)
 {
     response_header rh;
     rh.status.version = "HTTP/1.1";
@@ -74,7 +74,7 @@ handle_request(int sock, bhttp_server *server, http_request *request)
 }
 
 void
-send_header(int sock, http_request *request, response_header *rh, file_stats *fs)
+send_header(int sock, bhttp_request *request, response_header *rh, file_stats *fs)
 {
     /* TODO:
      * make this cleaner
@@ -207,7 +207,7 @@ get_file_stats(char *file_path)
 
 // Returns pointer to a string containing a sanitized url path
 char *
-url_path(http_request *request)
+url_path(bhttp_request *request)
 {
     if ((request->parser_url.field_set >> UF_PATH) & 1) {
         char *path = malloc(request->parser_url.field_data[UF_PATH].len + 1);

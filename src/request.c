@@ -12,18 +12,29 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <limits.h>
 #include "request.h"
 
 #define REQUEST_BUF_SIZE 1024
 
+/*
+ * Request parsing callback functions
+ * all callbacks return 0 on success, non-zero otherwise
+ */
+int start_cb(http_parser* parser);
+int url_cb(http_parser* parser, const char *at, size_t length);
+int header_field_cb(http_parser* parser, const char *at, size_t length);
+int header_value_cb(http_parser* parser, const char *at, size_t length);
+int header_end_cb(http_parser* parser);
+int body_cb(http_parser* parser, const char *at, size_t length);
+int message_end_cb(http_parser* parser);
+
 static void
-print_headers(http_request *request)
+print_headers(bhttp_request *request)
 {
     bvec *headers = &(request->headers);
     for (int i = 0; i < bvec_count(headers); i++)
     {
-        http_header *h = (http_header *)bvec_get(headers, i);
+        bhttp_header *h = (bhttp_header *)bvec_get(headers, i);
         printf("%s: %s\n", bstr_cstring(&(h->field)), bstr_cstring(&(h->value)));
     }
     printf("\n");
@@ -50,7 +61,7 @@ read_chunk(int sock, char *buf, size_t buf_size)
 }
 
 void
-receive_data(http_request *request, int sock)
+receive_data(bhttp_request *request, int sock)
 {
     http_parser *parser = &(request->parser);
     http_parser_settings *settings = &(request->settings);
@@ -111,7 +122,7 @@ bad:
 // Return the header value for a given header key
 // Caller must free afterwards
 char *
-request_header_value(http_request *request, const char * header_field)
+request_header_value(bhttp_request *request, const char * header_field)
 {
 //    for (size_t i = 0; i < bvec_count(&(request->headers)); i++)
 //    {
@@ -130,10 +141,10 @@ request_header_value(http_request *request, const char * header_field)
     return NULL;
 }
 
-static http_header *
+static bhttp_header *
 http_header_new()
 {
-    http_header *h = malloc(sizeof(http_header));
+    bhttp_header *h = malloc(sizeof(bhttp_header));
     if (h == NULL)
         return NULL;
     bstr_init(&(h->field));
@@ -142,7 +153,7 @@ http_header_new()
 }
 
 static void
-http_header_free(http_header *h)
+http_header_free(bhttp_header *h)
 {
     bstr_free_contents(&(h->field));
     bstr_free_contents(&(h->value));
@@ -150,7 +161,7 @@ http_header_free(http_header *h)
 }
 
 static void
-init_parser(http_request *request)
+init_parser(bhttp_request *request)
 {
     /* main parser */
     http_parser_init(&(request->parser), HTTP_REQUEST);
@@ -168,7 +179,7 @@ init_parser(http_request *request)
 }
 
 void
-init_request(http_request *request)
+init_request(bhttp_request *request)
 {
     request->keep_alive = HTTP_CLOSE;
     bstr_init(&(request->uri));
@@ -180,7 +191,7 @@ init_request(http_request *request)
 }
 
 void
-free_request(http_request *request)
+free_request(bhttp_request *request)
 {
     bstr_free_contents(&(request->uri));
     bvec_free_contents(&(request->headers));
@@ -201,7 +212,7 @@ int
 url_cb(http_parser* parser, const char *at, size_t length)
 {
     if (length == 0) return 0;
-    http_request *request = parser->data;
+    bhttp_request *request = parser->data;
     if (bstr_append_cstring(&(request->uri), at, length) != BS_SUCCESS)
         return 1;
     return 0;
@@ -211,11 +222,11 @@ int
 header_field_cb(http_parser* parser, const char *at, size_t length)
 {
     if (length == 0) return 0;
-    http_request *request = parser->data;
+    bhttp_request *request = parser->data;
     bvec *headers = &(request->headers);
 
     int num_headers = bvec_count(headers);
-    http_header *h = num_headers > 0 ? bvec_get(headers, num_headers-1) : NULL;
+    bhttp_header *h = num_headers > 0 ? bvec_get(headers, num_headers - 1) : NULL;
     /* if first header, or last cb was a value, make a new field */
     if (h == NULL || bstr_size(&(h->value)) > 0)
     {
@@ -235,9 +246,9 @@ int
 header_value_cb(http_parser* parser, const char *at, size_t length)
 {
     if (length == 0) return 0;
-    http_request *request = parser->data;
+    bhttp_request *request = parser->data;
     bvec *headers = &(request->headers);
-    http_header *h = (http_header *)bvec_get(headers, bvec_count(headers)-1);
+    bhttp_header *h = (bhttp_header *)bvec_get(headers, bvec_count(headers) - 1);
     bstr_append_cstring(&(h->value), at, length);
     return 0;
 }
@@ -245,7 +256,7 @@ header_value_cb(http_parser* parser, const char *at, size_t length)
 int
 header_end_cb(http_parser* parser)
 {
-    http_request *request = parser->data;
+    bhttp_request *request = parser->data;
     /* parse URI */
     if (http_parser_parse_url(bstr_cstring(&(request->uri)),
                               bstr_size(&(request->uri)),
@@ -268,7 +279,7 @@ int
 body_cb(http_parser* parser, const char *at, size_t length)
 {
     if (length == 0) return 0;
-    http_request *request = parser->data;
+    bhttp_request *request = parser->data;
     bstr_append_cstring(&(request->body), at, length);
     return 0;
 }
@@ -276,7 +287,7 @@ body_cb(http_parser* parser, const char *at, size_t length)
 int
 message_end_cb(http_parser* parser)
 {
-    http_request *request = parser->data;
+    bhttp_request *request = parser->data;
     request->done = 1;
     return 0;
 }

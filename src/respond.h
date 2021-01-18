@@ -46,16 +46,16 @@ struct file_stats {
     char *extension;
 };
 
-void handle_request(int sock, bhttp_server *server, http_request *request);
+void handle_request(int sock, bhttp_server *server, bhttp_request *request);
 
-void send_header(int sock, http_request *request, response_header *rh, file_stats *fs);
+void send_header(int sock, bhttp_request *request, response_header *rh, file_stats *fs);
 void send_file(int sock, char *file_path, file_stats *fs, int use_sendfile);
 
 file_stats get_file_stats(char *file_path);
 void build_header(response_header *header, file_stats *fs);
 
 /* Get properly formatted url path from request */
-char *url_path(http_request *request);
+char *url_path(bhttp_request *request);
 
 /* Decodes url hex codes to plaintext */
 void html_to_text(const char *source, char *dest, size_t length);

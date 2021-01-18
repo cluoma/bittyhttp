@@ -50,16 +50,13 @@ typedef struct
     int sock;
 } thread_args;
 
-/* Get network address structure */
-void *get_in_addr(struct sockaddr *sa);
-
 /* http server init and begin functions */
 bhttp_server http_server_new(void);
 int http_server_start(bhttp_server *server);
 void http_server_run(bhttp_server *server);
 
 /* Write to server logfile */
-void write_log(bhttp_server *server, http_request *request, char *client_ip);
+void write_log(bhttp_server *server, bhttp_request *request, char *client_ip);
 
 /* Reaps child processes from when requests are finished */
 void sigchld_handler(int s);

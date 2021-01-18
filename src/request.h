@@ -20,16 +20,13 @@
 #define HTTP_CLOSE          1
 #define HTTP_ERROR          2
 
-typedef struct http_header {
+typedef struct bhttp_header {
     bstr field;
     bstr value;
-} http_header;
+} bhttp_header;
 
-/*
- * Struct is populated when parsing
- */
-typedef struct http_request http_request;
-struct http_request {
+/* struct is populated during receive_data calls */
+typedef struct bhttp_request {
     /* first line */
     int method;
     bstr uri;
@@ -48,27 +45,16 @@ struct http_request {
     unsigned int keep_alive;
     /* request is done being parsed */
     unsigned int done;
-};
+} bhttp_request;
 
-/*
- * Request parsing callback functions
- * all callbacks return 0 on success, non-zero otherwise
- */
-int start_cb(http_parser* parser);
-int url_cb(http_parser* parser, const char *at, size_t length);
-int header_field_cb(http_parser* parser, const char *at, size_t length);
-int header_value_cb(http_parser* parser, const char *at, size_t length);
-int header_end_cb(http_parser* parser);
-int body_cb(http_parser* parser, const char *at, size_t length);
-int message_end_cb(http_parser* parser);
+/* init and free */
+void init_request(bhttp_request *request);
+void free_request(bhttp_request *request);
 
-char *request_header_val(http_request *request, const char*header_key);
+/* main functions to read request */
+void receive_data(bhttp_request *request, int sock);
 
-/* Free memory used by http_request */
-void init_request(http_request *request);
-void free_request(http_request *request);
-
-/* Main functions to read request */
-void receive_data(http_request *request, int sock);
+/* returns a pointer to the value of header_key */
+const char *request_header_val(bhttp_request *request, const char *header_key);
 
 #endif /* BITTYHTTP_REQUEST_H */
