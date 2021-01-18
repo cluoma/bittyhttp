@@ -83,6 +83,42 @@ fail_start:
     return -1;
 }
 
+void *
+do_connection(void * arg)
+{
+    //printf("New thread...\n");
+    bhttp_server *server = ((thread_args *)arg)->server;
+    int conn_fd = ((thread_args *)arg)->sock;
+
+    http_request request;
+    /* handle request while keep-alive requested */
+    while (1)
+    {
+        /* read a new request */
+        init_request(&request);
+        receive_data(&request, conn_fd);
+
+        /* handle request if no error returned */
+        if (request.keep_alive == HTTP_ERROR)
+        {
+            free_request(&request);
+            break;
+        }
+        else
+        {
+            //write_log(server, &request, s);
+            handle_request(conn_fd, server, &request);
+        }
+        free_request(&request);
+        if (request.keep_alive == HTTP_CLOSE)
+            break;
+    }
+    /* cleanup */
+    close(conn_fd);
+    free(arg);
+    return NULL;
+}
+
 void
 http_server_run(bhttp_server *server)
 {
@@ -106,6 +142,7 @@ http_server_run(bhttp_server *server)
     // Wait for connections forever
     while(1) {
         sin_size = sizeof their_addr;
+        //printf("Waiting on connection...\n");
         conn_fd = accept(server->sock, (struct sockaddr *)&their_addr, &sin_size);
         if (conn_fd == -1) {
             perror("accept");
@@ -117,34 +154,18 @@ http_server_run(bhttp_server *server)
                   get_in_addr((struct sockaddr *)&their_addr),
                   s, sizeof s);
 
-        // Fork and handle request
-        if (!fork()) { // this is the child process
-            close(server->sock); // child doesn't need the listener
-
-            http_request request;
-            init_request(&request);
-            /* handle request while keep-alive requested */
-            while (request.keep_alive == HTTP_KEEP_ALIVE)
-            {
-                /* read a new request */
-                init_request(&request);
-                receive_data(&request, conn_fd);
-
-                /* handle request if no error returned */
-                if (request.keep_alive != HTTP_ERROR)
-                {
-                    //write_log(server, &request, s);
-                    handle_request(conn_fd, server, &request);
-                }
-
-                free_request(&request);
-            }
-
-            /* cleanup */
-            close(conn_fd);
-            exit(0);
+        /* start new thread to handle connection */
+        thread_args *args = malloc(sizeof(thread_args));
+        args->server = server;
+        args->sock = conn_fd;
+        pthread_attr_init(&(args->attr));
+        pthread_attr_setdetachstate(&(args->attr), PTHREAD_CREATE_DETACHED);
+        int ret = pthread_create(&(args->threads), &(args->attr), do_connection, (void *)args);
+        if (ret != 0)
+        {
+            printf("THREAD ERROR\n");
+            return;
         }
-        close(conn_fd);  // parent doesn't need this
     }
 }
 

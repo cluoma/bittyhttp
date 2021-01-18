@@ -170,7 +170,7 @@ init_parser(http_request *request)
 void
 init_request(http_request *request)
 {
-    request->keep_alive = HTTP_KEEP_ALIVE;
+    request->keep_alive = HTTP_CLOSE;
     bstr_init(&(request->uri));
     bvec_init(&(request->headers), (void (*)(void *)) &http_header_free);
     bstr_init(&(request->body));

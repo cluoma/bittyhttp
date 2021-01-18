@@ -42,6 +42,14 @@ static const bhttp_server HTTP_SERVER_DEFAULT = {
     .sock = 0
 };
 
+typedef struct
+{
+    pthread_t threads;
+    pthread_attr_t attr;
+    bhttp_server *server;
+    int sock;
+} thread_args;
+
 /* Get network address structure */
 void *get_in_addr(struct sockaddr *sa);
 
