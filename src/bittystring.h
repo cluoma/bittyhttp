@@ -13,7 +13,7 @@
 #include <stdarg.h>
 #include <inttypes.h>
 
-#define BS_MAX_CAPACITY 0x7FFFFFFFFFFFFFFF
+#define BS_MAX_CAPACITY (UINT64_MAX >> 1)
 #define BS_MAX_SSO_CAPACITY 23
 
 #define RETURN_CODES    C(BS_SUCCESS, "All good\n")             \
