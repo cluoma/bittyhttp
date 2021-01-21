@@ -39,22 +39,34 @@ typedef union
     struct bstr_short_string ss;
 } bstr;
 
-/* creators */
+/*
+ * Creators
+ */
 bstr *bstr_new(void);
 bstr * bstr_new_from_cstring(const char *cs, uint64_t len);
 void bstr_init(bstr *bs);
 const char * bstr_error_string(bstr_ret_val r);
-/* freers */
+/*
+ * Freers
+ */
 void bstr_free(bstr *bs);
 void bstr_free_contents(bstr *bs);
-/* accessors */
+/*
+ * Accessors
+ */
 uint64_t bstr_size(bstr *bs);
 uint64_t bstr_capacity(bstr *bs);
 const char * bstr_cstring(bstr *bs);
-/* modifiers */
+/*
+ * Modifiers
+ */
 int bstr_append_cstring(bstr *bs, const char *cs, uint64_t len);
+int bstr_append_cstring_nolen(bstr *bs, const char *cs);
+int bstr_append_char(bstr *bs, char c);
 int bstr_append_printf(bstr *bs, const char * format, ...);
 int bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len);
+int bstr_prepend_cstring_nolen(bstr *bs, const char *cs);
+int bstr_prepend_char(bstr *bs, char c);
 int bstr_prepend_printf(bstr *bs, const char * format, ...);
 
 #endif //BITTYSTRING_BITTYSTRING_H

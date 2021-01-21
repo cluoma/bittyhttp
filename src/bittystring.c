@@ -222,7 +222,6 @@ bstr_append_cstring(bstr *bs, const char *cs, uint64_t len)
     printf("[23]: %" PRIu64 "\n", bs->capacity);
 #endif
     if (len == 0) return BS_SUCCESS;
-    if (len <  0) return BS_FAIL;
 
     if (bstr_expand_by(bs, len) != BS_SUCCESS)
         return BS_FAIL;
@@ -255,7 +254,6 @@ bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len)
     printf("[23]: %" PRIu64 "\n", bs->capacity);
 #endif
     if (len == 0) return BS_SUCCESS;
-    if (len <  0) return BS_FAIL;
 
     if (bstr_expand_by(bs, len) != BS_SUCCESS)
         return BS_FAIL;
@@ -277,6 +275,31 @@ bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len)
     }
 
     return BS_SUCCESS;
+}
+
+int
+bstr_append_cstring_nolen(bstr *bs, const char *cs)
+{
+    return bstr_append_cstring(bs, cs, (uint64_t)strlen(cs));
+}
+
+int
+bstr_prepend_cstring_nolen(bstr *bs, const char *cs)
+{
+    return bstr_prepend_cstring(bs, cs, (uint64_t)strlen(cs));
+}
+
+int
+bstr_append_char(bstr *bs, char c)
+{
+    char cs[1]; *cs = c;
+    return bstr_append_cstring(bs, cs, 1);
+}
+int
+bstr_prepend_char(bstr *bs, char c)
+{
+    char cs[1]; *cs = c;
+    return bstr_prepend_cstring(bs, cs, 1);
 }
 
 int
