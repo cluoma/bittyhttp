@@ -122,11 +122,28 @@ get_file_stats(const char *file_path)
     return fs;
 }
 
+int
+send_headers(int sock, bhttp_response *res)
+{
+    bstr *header_text = bhttp_res_headers_to_string(res);
+    //printf("%s", bstr_cstring(header_text));
+    send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+    bstr_free(header_text);
+}
+
+static void
+send_500_response(int sock, bhttp_response *res)
+{
+    res->response_code = BHTTP_500;
+    /* send header */
+    send_headers(sock, res);
+}
+
 static void
 send_404_response(int sock, bhttp_response *res)
 {
     /* add our own headers and set 404 message */
-    bstr_append_cstring_nolen(&res->first_line, "HTTP/1.1 404 NOT FOUND\r\n");
+    res->response_code = BHTTP_404;
     bhttp_res_set_body_text(res, "<html><p>bittyhttp: 404 - NOT FOUND</p><html>");
     bhttp_res_add_header(res, "content-type", "text/html");
     bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", bstr_size(&res->body));
@@ -134,10 +151,7 @@ send_404_response(int sock, bhttp_response *res)
     bstr_free_contents(&tmp);
 
     /* send header */
-    bstr *header_text = bhttp_res_headers_to_string(res);
-    printf("%s", bstr_cstring(header_text));
-    send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
-    bstr_free(header_text);
+    send_headers(sock, res);
     /* send body */
     send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
 }
@@ -150,17 +164,14 @@ write_response(int sock, bhttp_response *res)
     if (res->bodytype == BHTTP_RES_BODY_TEXT)
     {
         /* add our own headers */
-        bstr_append_cstring_nolen(&(res->first_line), "HTTP/1.1 200 OK\r\n");
-        bhttp_res_add_header(res, "content-type", "text/html");
+        bhttp_header *h = bhttp_res_get_header(res, "content-type");
+        if (h == NULL)
+            bhttp_res_add_header(res, "content-type", "text/plain");
         bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", bstr_size(&res->body));
         bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
         bstr_free_contents(&tmp);
-
         /* send header */
-        bstr *header_text = bhttp_res_headers_to_string(res);
-        printf("%s", bstr_cstring(header_text));
-        send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
-        bstr_free(header_text);
+        send_headers(sock, res);
         /* send body */
         send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
     }
@@ -183,35 +194,27 @@ write_response(int sock, bhttp_response *res)
         if (fs.found && !fs.isdir)
         {
             /* add our own headers */
-            bstr_append_cstring_nolen(&(res->first_line), "HTTP/1.1 200 OK\r\n");
             bhttp_res_add_header(res, "content-type", mime_from_ext(fs.extension));
             bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", fs.bytes);
             bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
             bstr_free_contents(&tmp);
-        }
-        else
-        {
-            send_404_response(sock, res);
+
+            /* send header */
+            send_headers(sock, res);
+            /* send file contents */
+            send_file(sock, bstr_cstring(file_path), fs.bytes, 1);
+            bstr_free(file_path);
             return;
         }
-        /* send header */
-        bstr *header_text = bhttp_res_headers_to_string(res);
-        printf("%s", bstr_cstring(header_text));
-        send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
-        bstr_free(header_text);
-        /* send file contents */
-        send_file(sock, bstr_cstring(file_path), fs.bytes, 1);
-
         bstr_free(file_path);
+        send_404_response(sock, res);
+        return;
     }
 }
 
-void
+static int
 match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
 {
-    response_header rh;
-    rh.status.version = "HTTP/1.1";
-
     switch (req->method) {
         case HTTP_POST:
         case HTTP_GET:
@@ -223,9 +226,9 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
                 printf("handler: %s\n", bstr_cstring(&handler->uri));
                 printf("URI: %s\n", bstr_cstring(&req->uri_path));
                 if (strcmp(bstr_cstring(&handler->uri), bstr_cstring(&req->uri_path)) == 0)
-                    handler->f(req, res);
+                    return handler->f(req, res);
             }
-//            default_file_handler(req, res);
+            default_file_handler(req, res);
 //            helloworld_text_handler(req, res);
         }
             break;
@@ -235,7 +238,6 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
 static void *
 do_connection(void * arg)
 {
-    //printf("New thread...\n");
     bhttp_server *server = ((thread_args *)arg)->server;
     int conn_fd = ((thread_args *)arg)->sock;
 
@@ -258,7 +260,6 @@ do_connection(void * arg)
             bhttp_response res;
             bhttp_response_init(&res);
             match_handler(server, &request, &res);
-//            handle_request(&request, &res);
             write_response(conn_fd, &res);
             bhttp_response_free(&res);
         }

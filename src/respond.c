@@ -21,12 +21,14 @@
 #include "respond.h"
 #include "header.h"
 #include "http_parser.h"
-#include "mime_types.h"
+
+#define C(k, v) [k] = (v),
+static const char * bhttp_res_codes_string[] = { BHTTP_RES_CODES };
+#undef C
 
 void
 bhttp_response_init(bhttp_response *res)
 {
-    bstr_init(&res->first_line);
     bvec_init(&res->headers, (void (*)(void *)) http_header_free);
     bstr_init(&res->body);
     res->bodytype = BHTTP_RES_BODY_EMPTY;
@@ -35,7 +37,6 @@ bhttp_response_init(bhttp_response *res)
 void
 bhttp_response_free(bhttp_response *res)
 {
-    bstr_free_contents(&res->first_line);
     bvec_free_contents(&res->headers);
     bstr_free_contents(&res->body);
     res->bodytype = BHTTP_RES_BODY_EMPTY;
@@ -48,8 +49,22 @@ bhttp_res_add_header(bhttp_response *res, const char *field, const char *value)
     if (h == NULL) return 1;
     if (bstr_append_cstring_nolen(&(h->field), field) != 0) return 1;
     if (bstr_append_cstring_nolen(&(h->value), value) != 0) return 1;
-    bvec_add(&(res->headers), h);
+    bvec_add(&res->headers, h);
     return 0;
+}
+
+bhttp_header *
+bhttp_res_get_header(bhttp_response *res, const char *field)
+{
+    bvec *headers = &res->headers;
+    for (int i = 0; i < bvec_count(headers); i++)
+    {
+        bhttp_header *cur = (bhttp_header *)bvec_get(headers, i);
+        bstr *hf = &cur->field;
+        if (strcasecmp(field, bstr_cstring(hf)) == 0)
+            return cur;
+    }
+    return NULL;
 }
 
 static int
@@ -92,7 +107,7 @@ bhttp_res_headers_to_string(bhttp_response *res)
 {
     bstr *header_text = bstr_new();
     if (header_text == NULL) return NULL;
-    bstr_append_cstring(header_text, bstr_cstring(&res->first_line), bstr_size(&res->first_line));
+    bstr_append_printf(header_text, "HTTP/1.1 %s\r\n", bhttp_res_codes_string[res->response_code]);
     for (int i = 0; i < bvec_count(&res->headers); i++)
     {
         bhttp_header *h = bvec_get(&res->headers, i);
@@ -103,7 +118,7 @@ bhttp_res_headers_to_string(bhttp_response *res)
 }
 
 int
-send_file(int sock, char *file_path, size_t file_size, int use_sendfile)
+send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
 /* makes sure the send an entire file to sock */
 {
     ssize_t sent = 0;
@@ -165,65 +180,17 @@ send_file(int sock, char *file_path, size_t file_size, int use_sendfile)
     return 0;
 }
 
-// Needs a lot of work
-static void
-build_header(bhttp_response *res, file_stats *fs)
-{
-    bstr_append_cstring_nolen(&(res->first_line), "HTTP/1.1 404 Not Found");
-    bhttp_header *h;
-    h = http_header_new();
-    bstr_append_cstring_nolen(&(h->field), "content-type");
-    bstr_append_cstring_nolen(&(h->value), "text/html");
-    bvec_add(&(res->headers), h);
-}
-
 int
 default_404_handler(bhttp_request *req, bhttp_response *res)
 {
-    bstr_append_cstring_nolen(&(res->first_line), "HTTP/1.1 404 Not Found");
-    bhttp_header *h;
-    h = http_header_new();
-    bstr_append_cstring_nolen(&(h->field), "content-type");
-    bstr_append_cstring_nolen(&(h->value), "text/html");
-    bvec_add(&(res->headers), h);
+    res->response_code = BHTTP_200_OK;
+    bhttp_res_add_header(res, "content-type", "text/html");
     bstr_append_cstring_nolen(&(res->body), "<html><p>404 Not Found</p></html>");
 }
 
 int
 default_file_handler(bhttp_request *req, bhttp_response *res)
 {
+    res->response_code = BHTTP_200_OK;
     return bhttp_res_set_body_file_rel(res, bstr_cstring(&req->uri_path));
 }
-
-int
-helloworld_text_handler(bhttp_request *req, bhttp_response *res)
-{
-    bstr bs;
-    bstr_init(&bs);
-    bstr_append_printf(&bs, "<html><p>Hello, world! from URL: %s</p><p>%s</p><p>%s</p></html>",
-                       bstr_cstring(&req->uri),
-                       bstr_cstring(&req->uri_path),
-                       bstr_cstring(&req->uri_query));
-    bhttp_res_set_body_text(res, bstr_cstring(&bs));
-    bstr_free_contents(&bs);
-    return 0;
-}
-
-void
-handle_request(bhttp_request *req, bhttp_response *res)
-{
-    response_header rh;
-    rh.status.version = "HTTP/1.1";
-
-    switch (req->method) {
-        case HTTP_POST:
-        case HTTP_GET:
-        {
-            /* match handlers here */
-            default_file_handler(req, res);
-//            helloworld_text_handler(req, res);
-        }
-            break;
-    }
-}
-

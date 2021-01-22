@@ -63,6 +63,7 @@ helloworld_handler(bhttp_request *req, bhttp_response *res)
                        bstr_cstring(&req->uri_query));
     bhttp_res_set_body_text(res, bstr_cstring(&bs));
     bstr_free_contents(&bs);
+    res->response_code = BHTTP_200_OK;
     return 0;
 }
 
