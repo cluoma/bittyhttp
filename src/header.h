@@ -16,7 +16,13 @@ typedef struct bhttp_header {
     bstr value;
 } bhttp_header;
 
+typedef struct bhttp_headers {
+
+} bhttp_headers;
+
 bhttp_header * http_header_new();
 void http_header_free(bhttp_header *h);
+
+int bhttp_header_add(bhttp_header *h, const char *field, const char *value);
 
 #endif //BITTYHTTP_HEADER_H

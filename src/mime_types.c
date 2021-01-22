@@ -29,7 +29,7 @@ static http_mime http_mime_types[] = {
     {"zip", "application/zip"}
 };
 
-char *
+const char *
 mime_from_ext(char *ext)
 {
     for (size_t i = 0; i < ARRAY_SIZE(http_mime_types); i++)

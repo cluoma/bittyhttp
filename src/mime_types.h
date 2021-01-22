@@ -12,6 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 
-char *mime_from_ext(char *ext);
+const char * mime_from_ext(char *ext);
 
 #endif /* BITTYHTTP_MIME_TYPES_H */

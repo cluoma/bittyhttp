@@ -1,6 +1,6 @@
 //
 //  respond.h
-//  MiniHTTP
+//  bittyhttp
 //
 //  Created by Colin Luoma on 2016-07-03.
 //  Copyright (c) 2016 Colin Luoma. All rights reserved.
@@ -10,11 +10,6 @@
 #define BITTYHTTP_RESPOND_H
 
 #include <stdio.h>
-
-#define MAX(a,b) \
-({ __typeof__ (a) _a = (a); \
-__typeof__ (b) _b = (b); \
-_a > _b ? _a : _b; })
 
 #define TRANSFER_BUFFER 10240
 
@@ -46,20 +41,36 @@ struct file_stats {
     char *extension;
 };
 
-void handle_request(int sock, bhttp_server *server, bhttp_request *request);
+typedef enum {
+    BHTTP_RES_BODY_EMPTY = 0,
+    BHTTP_RES_BODY_TEXT,
+    BHTTP_RES_BODY_FILE_REL,
+    BHTTP_RES_BODY_FILE_ABS
+} bhttp_response_body_type;
 
-void send_header(int sock, bhttp_request *request, response_header *rh, file_stats *fs);
-void send_file(int sock, char *file_path, file_stats *fs, int use_sendfile);
+typedef struct bhttp_response {
+    /* first line */
+    bstr first_line;
+    /* headers */
+    bvec headers;
+    /* body */
+    bhttp_response_body_type bodytype;
+    bstr body;
+} bhttp_response;
 
-file_stats get_file_stats(char *file_path);
-void build_header(response_header *header, file_stats *fs);
+void bhttp_response_init(bhttp_response *res);
+void bhttp_response_free(bhttp_response *res);
 
-/* Get properly formatted url path from request */
-char *url_path(bhttp_request *request);
+void handle_request(bhttp_request *req, bhttp_response *res);
+bstr * bhttp_res_headers_to_string(bhttp_response *res);
 
-/* Decodes url hex codes to plaintext */
-void html_to_text(const char *source, char *dest, size_t length);
+/* interface for handlers */
+int bhttp_res_add_header(bhttp_response *res, const char *field, const char *value);
+int bhttp_res_set_body_text(bhttp_response *res, const char *s);
+int bhttp_res_set_body_file(bhttp_response *res, const char *s, int isabs);
+int bhttp_res_set_body_file_rel(bhttp_response *res, const char *s);
+int bhttp_res_set_body_file_abs(bhttp_response *res, const char *s);
 
-char *sanitize_path(char *path);
+void send_file(int sock, char *file_path, int file_size, int use_sendfile);
 
 #endif /* BITTYHTTP_RESPOND_H */

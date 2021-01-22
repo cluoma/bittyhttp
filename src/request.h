@@ -1,6 +1,6 @@
 //
 //  request.h
-//  MiniHTTP
+//  bittyhttp
 //
 //  Created by Colin Luoma on 2016-06-27.
 //  Copyright (c) 2016 Colin Luoma. All rights reserved.
@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "header.h"
 #include "http_parser.h"
 #include "bittystring.h"
 #include "bittyvec.h"
@@ -26,16 +27,13 @@ typedef enum {
     BHTTP_REQ_ERROR
 } bhttp_request_ret;
 
-typedef struct bhttp_header {
-    bstr field;
-    bstr value;
-} bhttp_header;
-
 /* struct is populated during receive_data calls */
 typedef struct bhttp_request {
     /* first line */
     int method;
     bstr uri;
+    bstr uri_path;
+    bstr uri_query;
 //    char *version;
 //    size_t version_len;
     /* headers */

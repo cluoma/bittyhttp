@@ -1,6 +1,6 @@
 //
 //  request.c
-//  MiniHTTP
+//  bittyhttp
 //
 //  Created by Colin Luoma on 2016-06-27.
 //  Copyright (c) 2016 Colin Luoma. All rights reserved.
@@ -28,6 +28,48 @@ int body_cb(http_parser* parser, const char *at, size_t length);
 int message_end_cb(http_parser* parser);
 
 static void
+init_parser(bhttp_request *request)
+{
+    /* main parser */
+    http_parser_init(&(request->parser), HTTP_REQUEST);
+    /* url parser */
+    http_parser_url_init(&(request->parser_url));
+    /* callbacks */
+    http_parser_settings_init(&(request->settings));
+    request->settings.on_message_begin    = start_cb;
+    request->settings.on_url              = url_cb;
+    request->settings.on_header_field     = header_field_cb;
+    request->settings.on_header_value     = header_value_cb;
+    request->settings.on_headers_complete = header_end_cb;
+    request->settings.on_body             = body_cb;
+    request->settings.on_message_complete = message_end_cb;
+}
+
+void
+init_request(bhttp_request *request)
+{
+    request->keep_alive = BHTTP_CLOSE;
+    bstr_init(&(request->uri));
+    bstr_init(&(request->uri_path));
+    bstr_init(&(request->uri_query));
+    bvec_init(&(request->headers), (void (*)(void *)) &http_header_free);
+    bstr_init(&(request->body));
+    request->done = 0;
+    init_parser(request);
+    request->parser.data = request;
+}
+
+void
+free_request(bhttp_request *request)
+{
+    bstr_free_contents(&(request->uri));
+    bstr_free_contents(&(request->uri_path));
+    bstr_free_contents(&(request->uri_query));
+    bvec_free_contents(&(request->headers));
+    bstr_free_contents(&(request->body));
+}
+
+static void
 print_headers(bhttp_request *request)
 /* prints headers for debugging */
 {
@@ -40,22 +82,100 @@ print_headers(bhttp_request *request)
     printf("\n");
 }
 
-//static ssize_t
-//read_chunk(int sock, char *buf, size_t buf_size)
-///* reads up to buf_size from sock into buf and return bytes read */
+static void
+url_decode(const char *source, bstr *dest, size_t length)
+/* decodes URL strings to text (eg '+' -> ' ' and % hex codes) */
+{
+    size_t n = 0;
+    while (*source != '\0' && n < length ) {
+        if (*source == '+') {
+            bstr_append_char(dest, ' ');
+//            *dest = ' ';
+        }
+        else if (*source == '%') {
+            int hex_char;
+            sscanf(source+1, "%2x", &hex_char);
+            bstr_append_char(dest, (char)hex_char);
+//            *dest = hex_char;
+            source += 2;
+            n += 2;
+        } else {
+            bstr_append_char(dest, *source);
+//            *dest = *source;
+        }
+        source++;
+        n++;
+    }
+//    *dest = '\0';
+}
+
+static int
+url_to_path_and_query(bhttp_request *req)
+{
+    /* check url validity */
+    if (http_parser_parse_url(bstr_cstring(&(req->uri)),
+                              bstr_size(&(req->uri)),
+                              0,
+                              &(req->parser_url)) != 0)
+        return 1;
+    /* extract path */
+    if ((req->parser_url.field_set >> UF_PATH) & 1)
+    {
+        /* TODO: error checking */
+        url_decode(bstr_cstring(&(req->uri))+(req->parser_url.field_data[UF_PATH].off),
+                   &req->uri_path,
+                   req->parser_url.field_data[UF_PATH].len);
+        /* TODO: implement sanitize URL */
+    }
+    else
+        return 1;
+    /* extract query string */
+    if ((req->parser_url.field_set >> UF_QUERY) & 1)
+    {
+        bstr_append_cstring(&req->uri_query,
+                            bstr_cstring(&(req->uri))+(req->parser_url.field_data[UF_QUERY].off),
+                            req->parser_url.field_data[UF_QUERY].len);
+        /* TODO: error checking */
+    }
+    return 0;
+}
+
+//char *
+//sanitize_path(char *path)
+///* removes './' and '/../' from paths */
 //{
-//    ssize_t n_recvd = recv(sock, buf, buf_size, 0);
-//    if (n_recvd == -1) { // recv errorr
-//        perror("RECV");
-//        fprintf(stderr, "n_recvd: %d\n", (int)n_recvd);
-//        return n_recvd;
-//    }
-//    if (n_recvd == 0) // Connection closed by client
-//    {
-//        return n_recvd;
+//    char *token, *tofree;
+//    tofree = path;
+//
+//    char *clean = malloc(strlen(path) + 1);
+//    memset(clean, 0, strlen(path));
+//
+//    char **argv = malloc(sizeof(char *));
+//    int argc = 0;
+//
+//    // Tokenize
+//    while ((token = strsep(&path, "/")) != NULL) {
+//        if (strcmp(token, ".") == 0 || strcmp(token, "") == 0) {
+//            continue;
+//        } else if (strcmp(token, "..") == 0) {
+//            argc = MAX(--argc, 0);
+//        } else {
+//            argv[argc] = token;
+//            argc++;
+//            argv = realloc(argv, sizeof(char *) * (argc + 1));
+//        }
 //    }
 //
-//    return n_recvd;
+//    // Combine cleaned filepath
+//    for (int i = 0; i < argc; i++) {
+//        strcat(clean, "/");
+//        strcat(clean, argv[i]);
+//    }
+//
+//    free(tofree);
+//    free(argv);
+//
+//    return clean;
 //}
 
 static int
@@ -75,6 +195,7 @@ wait_for_sock(int sock)
 
 int
 receive_data(bhttp_request *request, int sock)
+/* reads data from socket */
 {
     http_parser *parser = &(request->parser);
     http_parser_settings *settings = &(request->settings);
@@ -141,64 +262,6 @@ request_header_value(bhttp_request *request, const char * header_field)
     return NULL;
 }
 
-static bhttp_header *
-http_header_new()
-{
-    bhttp_header *h = malloc(sizeof(bhttp_header));
-    if (h == NULL)
-        return NULL;
-    bstr_init(&(h->field));
-    bstr_init(&(h->value));
-    return h;
-}
-
-static void
-http_header_free(bhttp_header *h)
-{
-    bstr_free_contents(&(h->field));
-    bstr_free_contents(&(h->value));
-    free(h);
-}
-
-static void
-init_parser(bhttp_request *request)
-{
-    /* main parser */
-    http_parser_init(&(request->parser), HTTP_REQUEST);
-    /* url parser */
-    http_parser_url_init(&(request->parser_url));
-    /* callbacks */
-    http_parser_settings_init(&(request->settings));
-    request->settings.on_message_begin    = start_cb;
-    request->settings.on_url              = url_cb;
-    request->settings.on_header_field     = header_field_cb;
-    request->settings.on_header_value     = header_value_cb;
-    request->settings.on_headers_complete = header_end_cb;
-    request->settings.on_body             = body_cb;
-    request->settings.on_message_complete = message_end_cb;
-}
-
-void
-init_request(bhttp_request *request)
-{
-    request->keep_alive = BHTTP_CLOSE;
-    bstr_init(&(request->uri));
-    bvec_init(&(request->headers), (void (*)(void *)) &http_header_free);
-    bstr_init(&(request->body));
-    request->done = 0;
-    init_parser(request);
-    request->parser.data = request;
-}
-
-void
-free_request(bhttp_request *request)
-{
-    bstr_free_contents(&(request->uri));
-    bvec_free_contents(&(request->headers));
-    bstr_free_contents(&(request->body));
-}
-
-
 /*
  * HTTP Header parsing callbacks
  */
@@ -257,21 +320,18 @@ header_value_cb(http_parser* parser, const char *at, size_t length)
 int
 header_end_cb(http_parser* parser)
 {
-    bhttp_request *request = parser->data;
+    bhttp_request *req = parser->data;
     /* parse URI */
-    if (http_parser_parse_url(bstr_cstring(&(request->uri)),
-                              bstr_size(&(request->uri)),
-                              0,
-                              &(request->parser_url)) != 0)
+    if (url_to_path_and_query(req) != 0)
         return 1;
 
     /* get http method */
-    request->method = (int)parser->method;
+    req->method = (int)parser->method;
     /* check keep-live */
     if (http_should_keep_alive(parser) == 0)
-        request->keep_alive = BHTTP_CLOSE;
+        req->keep_alive = BHTTP_CLOSE;
     else
-        request->keep_alive = BHTTP_KEEP_ALIVE;
+        req->keep_alive = BHTTP_KEEP_ALIVE;
 
     return 0;
 }

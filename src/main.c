@@ -53,9 +53,24 @@ parse_args(int argc, char **argv, bhttp_server *server)
 }
 
 int
+helloworld_handler(bhttp_request *req, bhttp_response *res)
+{
+    bstr bs;
+    bstr_init(&bs);
+    bstr_append_printf(&bs, "<html><p>Hello, world! from URL: %s</p><p>%s</p><p>%s</p></html>",
+                       bstr_cstring(&req->uri),
+                       bstr_cstring(&req->uri_path),
+                       bstr_cstring(&req->uri_query));
+    bhttp_res_set_body_text(res, bstr_cstring(&bs));
+    bstr_free_contents(&bs);
+    return 0;
+}
+
+int
 main(int argc, char **argv)
 {
-    bhttp_server server = http_server_new();
+//    bhttp_server server = http_server_new();
+    bhttp_server server = HTTP_SERVER_DEFAULT; bvec_init(&server.handlers, NULL);
     parse_args(argc, argv, &server);
 
     if (server.daemon)
@@ -75,7 +90,11 @@ main(int argc, char **argv)
 
     fflush(stdout);
 
+    bhttp_server_add_handler(&server, "/helloworld", helloworld_handler);
+    printf("count: %d\n", bvec_count(&server.handlers));
+
     http_server_run(&server);
+//    http_server_close()
 
     return 0;
 }

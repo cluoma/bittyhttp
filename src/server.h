@@ -1,6 +1,6 @@
 //
 //  server.h
-//  MiniHTTP
+//  bittyhttp
 //
 //  Created by Colin Luoma on 2016-07-03.
 //  Copyright (c) 2016 Colin Luoma. All rights reserved.
@@ -11,9 +11,11 @@
 
 #include <sys/socket.h>
 #include "request.h"
+#include "respond.h"
+#include "mime_types.h"
 
 /* bhttp_server structures stores information about the current server */
-typedef struct
+typedef struct bhttp_server
 {
     /* basic config */
     char *port;
@@ -21,6 +23,9 @@ typedef struct
     char *log_file;
     char *default_file;
     int backlog;
+
+    /* request handlers */
+    bvec handlers;
 
     /* not-so-basic config */
     int use_sendfile;
@@ -50,15 +55,18 @@ typedef struct
     int sock;
 } thread_args;
 
+typedef struct bhttp_req_handler
+{
+    bstr uri;
+    int (*f)(bhttp_request *req, bhttp_response *res)
+} bhttp_req_handler;
+
 /* http server init and begin functions */
 bhttp_server http_server_new(void);
 int http_server_start(bhttp_server *server);
 void http_server_run(bhttp_server *server);
 
-/* Write to server logfile */
-void write_log(bhttp_server *server, bhttp_request *request, char *client_ip);
-
-/* Reaps child processes from when requests are finished */
-void sigchld_handler(int s);
+/* add handlers */
+int bhttp_server_add_handler(bhttp_server *server, const char * uri, int (*cb)(bhttp_request *req, bhttp_response *res));
 
 #endif /* BITTYHTTP_SERVER_H */

@@ -18,6 +18,7 @@
 #include <time.h>
 #include <signal.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #include "server.h"
 #include "respond.h"
@@ -37,6 +38,7 @@ bhttp_server
 http_server_new()
 {
     bhttp_server server = HTTP_SERVER_DEFAULT;
+    bvec_init(&server.handlers, NULL);
     return server;
 }
 
@@ -93,6 +95,143 @@ fail_start:
     return -1;
 }
 
+// Needs a lot of work
+static file_stats
+get_file_stats(const char *file_path)
+{
+    file_stats fs;
+    struct stat s;
+
+    if (stat(file_path, &s) == -1) {  // Error in stat
+        fs.found = 0;
+        fs.isdir = 0;
+    } else if (S_ISDIR(s.st_mode)) {  // Found a directory
+        fs.found = 1;
+        fs.isdir = 1;
+    } else if (S_ISREG(s.st_mode)) {  // Found a file
+        fs.found = 1;
+        fs.isdir = 0;
+        fs.bytes = s.st_size;
+        fs.extension = strrchr(file_path, '.') + 1; // +1 because of '.'
+        fs.name = NULL;
+    } else {  // Anything else we pretend we didn't find it
+        fs.found = 0;
+        fs.isdir = 0;
+    }
+
+    return fs;
+}
+
+static void
+send_404_response(int sock, bhttp_response *res)
+{
+    /* add our own headers and set 404 message */
+    bstr_append_cstring_nolen(&res->first_line, "HTTP/1.1 404 NOT FOUND\r\n");
+    bhttp_res_set_body_text(res, "<html><p>bittyhttp: 404 - NOT FOUND</p><html>");
+    bhttp_res_add_header(res, "content-type", "text/html");
+    bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", bstr_size(&res->body));
+    bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
+    bstr_free_contents(&tmp);
+
+    /* send header */
+    bstr *header_text = bhttp_res_headers_to_string(res);
+    printf("%s", bstr_cstring(header_text));
+    send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+    bstr_free(header_text);
+    /* send body */
+    send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
+}
+
+static void
+write_response(int sock, bhttp_response *res)
+{
+    bhttp_res_add_header(res, "server", "bittyhttp");
+
+    if (res->bodytype == BHTTP_RES_BODY_TEXT)
+    {
+        /* add our own headers */
+        bstr_append_cstring_nolen(&(res->first_line), "HTTP/1.1 200 OK\r\n");
+        bhttp_res_add_header(res, "content-type", "text/html");
+        bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", bstr_size(&res->body));
+        bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
+        bstr_free_contents(&tmp);
+
+        /* send header */
+        bstr *header_text = bhttp_res_headers_to_string(res);
+        printf("%s", bstr_cstring(header_text));
+        send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+        bstr_free(header_text);
+        /* send body */
+        send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
+    }
+    else if (res->bodytype == BHTTP_RES_BODY_FILE_REL ||
+             res->bodytype == BHTTP_RES_BODY_FILE_ABS)
+    {
+
+        bstr *file_path = bstr_new();
+        if (res->bodytype == BHTTP_RES_BODY_FILE_REL)
+            bstr_append_cstring_nolen(file_path, "/home/colin/Documents/bittyhttp/www/");
+        bstr_append_cstring_nolen(file_path, bstr_cstring(&res->body));
+        file_stats fs = get_file_stats(bstr_cstring(file_path));
+        /* found directory, look for default file */
+        if (fs.found && fs.isdir) {
+            bstr_append_char(file_path, '/');
+            bstr_append_cstring_nolen(file_path, "index.html");
+            fs = get_file_stats(bstr_cstring(file_path));
+        }
+        /* found file */
+        if (fs.found && !fs.isdir)
+        {
+            /* add our own headers */
+            bstr_append_cstring_nolen(&(res->first_line), "HTTP/1.1 200 OK\r\n");
+            bhttp_res_add_header(res, "content-type", mime_from_ext(fs.extension));
+            bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", fs.bytes);
+            bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
+            bstr_free_contents(&tmp);
+        }
+        else
+        {
+            send_404_response(sock, res);
+            return;
+        }
+        /* send header */
+        bstr *header_text = bhttp_res_headers_to_string(res);
+        printf("%s", bstr_cstring(header_text));
+        send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+        bstr_free(header_text);
+        /* send file contents */
+        send_file(sock, bstr_cstring(file_path), fs.bytes, 1);
+
+        bstr_free(file_path);
+    }
+}
+
+void
+match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
+{
+    response_header rh;
+    rh.status.version = "HTTP/1.1";
+
+    switch (req->method) {
+        case HTTP_POST:
+        case HTTP_GET:
+        {
+            /* match handlers here */
+            for (int i = 0; i < bvec_count(&server->handlers); i++)
+            {
+                bhttp_req_handler *handler = bvec_get(&server->handlers, i);
+                printf("handler: %s\n", bstr_cstring(&handler->uri));
+                printf("URI: %s\n", bstr_cstring(&req->uri_path));
+                if (strcmp(bstr_cstring(&handler->uri), bstr_cstring(&req->uri_path)) == 0)
+                    handler->f(req, res);
+            }
+//            default_file_handler(req, res);
+//            helloworld_text_handler(req, res);
+        }
+            break;
+    }
+}
+
 static void *
 do_connection(void * arg)
 {
@@ -116,7 +255,12 @@ do_connection(void * arg)
         }
         else
         {
-            handle_request(conn_fd, server, &request);
+            bhttp_response res;
+            bhttp_response_init(&res);
+            match_handler(server, &request, &res);
+//            handle_request(&request, &res);
+            write_response(conn_fd, &res);
+            bhttp_response_free(&res);
         }
         //write_log(server, &request, s);
         free_request(&request);
@@ -168,6 +312,17 @@ http_server_run(bhttp_server *server)
             return;
         }
     }
+}
+
+int
+bhttp_server_add_handler(bhttp_server *server, const char * uri, int (*cb)(bhttp_request *req, bhttp_response *res))
+{
+    bhttp_req_handler *handler = malloc(sizeof(struct bhttp_req_handler));
+    bstr_init(&handler->uri);
+    bstr_append_cstring_nolen(&handler->uri, uri);
+    handler->f = cb;
+    bvec_add(&server->handlers, handler);
+    return 0;
 }
 
 void
