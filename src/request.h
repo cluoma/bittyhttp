@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include "header.h"
 #include "http_parser.h"
 #include "bittystring.h"
@@ -35,7 +36,6 @@ typedef struct bhttp_request {
     bstr uri_path;
     bstr uri_query;
 //    char *version;
-//    size_t version_len;
     /* headers */
     bvec headers;
     /* body */
