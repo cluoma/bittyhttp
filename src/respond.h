@@ -71,6 +71,7 @@ int bhttp_res_set_body_file(bhttp_response *res, const char *s, int isabs);
 int bhttp_res_set_body_file_rel(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_abs(bhttp_response *res, const char *s);
 
-void send_file(int sock, char *file_path, int file_size, int use_sendfile);
+int send_file(int sock, char *file_path, size_t file_size, int use_sendfile);
+int default_file_handler(bhttp_request *req, bhttp_response *res);
 
 #endif /* BITTYHTTP_RESPOND_H */

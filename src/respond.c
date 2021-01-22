@@ -44,10 +44,10 @@ bhttp_response_free(bhttp_response *res)
 int
 bhttp_res_add_header(bhttp_response *res, const char *field, const char *value)
 {
-    /* TODO: error handling */
     bhttp_header *h = http_header_new();
-    bstr_append_cstring_nolen(&(h->field), field);
-    bstr_append_cstring_nolen(&(h->value), value);
+    if (h == NULL) return 1;
+    if (bstr_append_cstring_nolen(&(h->field), field) != 0) return 1;
+    if (bstr_append_cstring_nolen(&(h->value), value) != 0) return 1;
     bvec_add(&(res->headers), h);
     return 0;
 }
@@ -90,8 +90,8 @@ bhttp_res_set_body_file_abs(bhttp_response *res, const char *s)
 bstr *
 bhttp_res_headers_to_string(bhttp_response *res)
 {
-    /* TODO: error handling */
     bstr *header_text = bstr_new();
+    if (header_text == NULL) return NULL;
     bstr_append_cstring(header_text, bstr_cstring(&res->first_line), bstr_size(&res->first_line));
     for (int i = 0; i < bvec_count(&res->headers); i++)
     {
@@ -102,43 +102,18 @@ bhttp_res_headers_to_string(bhttp_response *res)
     return header_text;
 }
 
-//void
-//send_header(int sock, bhttp_request *request, response_header *rh, file_stats *fs)
-//{
-//    /* TODO:
-//     * make this cleaner
-//     */
-//    bstr headers;
-//    bstr_init(&headers);
-//
-//    bstr_append_printf(&headers, "%s %s %s\r\nServer: bittyhttp\r\n", rh->status.version, rh->status.status_code, rh->status.status);
-//
-//    // Keep Alive
-//    if (request->keep_alive == BHTTP_KEEP_ALIVE)
-//    {
-//        bstr_append_printf(&headers, "Connection: Keep-Alive\r\nKeep-Alive: timeout=5\r\n");
-//    }
-//    else
-//    {
-//        bstr_append_printf(&headers, "Connection: Close\r\n");
-//    }
-//    // File content
-//    bstr_append_printf(&headers, "Content-Type: %s\r\nContent-Length: %lld\r\n\r\n", mime_from_ext(fs->extension), (long long int)fs->bytes);
-//    send(sock, bstr_cstring(&headers), bstr_size(&headers), 0);
-//    bstr_free_contents(&headers);
-//}
-
-// Needs a lot of work
-void
-send_file(int sock, char *file_path, int file_size, int use_sendfile)
+int
+send_file(int sock, char *file_path, size_t file_size, int use_sendfile)
+/* makes sure the send an entire file to sock */
 {
+    ssize_t sent = 0;
     if (use_sendfile)
     {
         int f = open(file_path, O_RDONLY);
         if ( f <= 0 )
         {
             printf("Cannot open file %d\n", errno);
-            return;
+            return 1;
         }
 
         off_t len = 0;
@@ -148,12 +123,11 @@ send_file(int sock, char *file_path, int file_size, int use_sendfile)
             printf("Mac: Sendfile error: %d\n", errno);
         }
         #elif __linux__
-        size_t sent = 0;
         ssize_t ret;
-        while ( (ret = sendfile(sock, f, &len, file_size - sent)) > 0 )
+        while ( (ret = sendfile(sock, f, &len, file_size-sent)) > 0 )
         {
             sent += ret;
-            if (sent >= file_size) break;
+            if (sent >= (ssize_t)file_size) break;
         }
         #endif
         close(f);
@@ -164,19 +138,18 @@ send_file(int sock, char *file_path, int file_size, int use_sendfile)
         if ( f == NULL )
         {
             printf("Cannot open file %d\n", errno);
-            return;
+            return 1;
         }
 
         size_t len = 0;
-        char *buf = malloc(TRANSFER_BUFFER);
+        char buf[TRANSFER_BUFFER];
         while ( (len = fread(buf, 1, TRANSFER_BUFFER, f)) > 0 )
         {
-            ssize_t sent = 0;
             ssize_t ret  = 0;
             while ( (ret = send(sock, buf+sent, len-sent, 0)) > 0 )
             {
                 sent += ret;
-                if (sent >= file_size) break;
+                if (sent >= (ssize_t)file_size) break;
             }
             if (ret < 0)
             {
@@ -187,9 +160,9 @@ send_file(int sock, char *file_path, int file_size, int use_sendfile)
             // Check for being done, either fread error or eof
             if (feof(f) || ferror(f)) {break;}
         }
-        free(buf);
         fclose(f);
     }
+    return 0;
 }
 
 // Needs a lot of work
