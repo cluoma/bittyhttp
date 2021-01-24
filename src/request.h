@@ -59,6 +59,6 @@ void free_request(bhttp_request *request);
 int receive_data(bhttp_request *request, int sock);
 
 /* returns a pointer to the value of header_key */
-const char *request_header_val(bhttp_request *request, const char *header_key);
+bhttp_header *bhttp_req_get_header(bhttp_request *req, const char *field);
 
 #endif /* BITTYHTTP_REQUEST_H */

@@ -241,25 +241,18 @@ receive_data(bhttp_request *request, int sock)
     return BHTTP_REQ_OK;
 }
 
-// Return the header value for a given header key
-// Caller must free afterwards
-char *
-request_header_value(bhttp_request *request, const char * header_field)
+bhttp_header *
+bhttp_req_get_header(bhttp_request *req, const char *field)
+/* returns the bhttp_header request header with the given field */
 {
-//    for (size_t i = 0; i < bvec_count(&(request->headers)); i++)
-//    {
-//        bstr *hf = (bstr *)bvec_get(&(request->headers), i);
-//        if (strncasecmp())
-//    }
-//    for (size_t i = 0; i < request->header_fields; i++)
-//    {
-//        if (strncasecmp(request->header_field[i], header_key, request->header_field_len[i]) == 0)
-//        {
-//            char *header_val = calloc(1, request->header_value_len[i] + 1);
-//            memcpy(header_val, request->header_value[i], request->header_value_len[i]);
-//            return header_val;
-//        }
-//    }
+    bvec *headers = &req->headers;
+    for (int i = 0; i < bvec_count(headers); i++)
+    {
+        bhttp_header *cur = (bhttp_header *)bvec_get(headers, i);
+        bstr *hf = &cur->field;
+        if (strcasecmp(field, bstr_cstring(hf)) == 0)
+            return cur;
+    }
     return NULL;
 }
 
