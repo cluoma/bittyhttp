@@ -12,11 +12,9 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/wait.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <time.h>
-#include <signal.h>
 #include <pthread.h>
 #include <sys/stat.h>
 
@@ -157,20 +155,23 @@ send_404_response(int sock, bhttp_response *res)
 }
 
 static void
-write_response(int sock, bhttp_response *res)
+write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, int sock)
 {
     bhttp_res_add_header(res, "server", "bittyhttp");
+    if (req->keep_alive)
+        bhttp_res_add_header(res, "connection", "keep-alive");
 
     if (res->bodytype == BHTTP_RES_BODY_TEXT)
     {
-        /* add our own headers */
+        /* check 'content-type', add default if missing */
         bhttp_header *h = bhttp_res_get_header(res, "content-type");
         if (h == NULL)
             bhttp_res_add_header(res, "content-type", "text/plain");
+        /* add 'content-length' based on text in body */
         bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", bstr_size(&res->body));
         bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
         bstr_free_contents(&tmp);
-        /* send header */
+        /* send full HTTP response header */
         send_headers(sock, res);
         /* send body */
         send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
@@ -178,16 +179,15 @@ write_response(int sock, bhttp_response *res)
     else if (res->bodytype == BHTTP_RES_BODY_FILE_REL ||
              res->bodytype == BHTTP_RES_BODY_FILE_ABS)
     {
-
         bstr *file_path = bstr_new();
         if (res->bodytype == BHTTP_RES_BODY_FILE_REL)
-            bstr_append_cstring_nolen(file_path, "/home/colin/Documents/bittyhttp/www/");
+            bstr_append_cstring_nolen(file_path, server->docroot);
         bstr_append_cstring_nolen(file_path, bstr_cstring(&res->body));
         file_stats fs = get_file_stats(bstr_cstring(file_path));
-        /* found directory, look for default file */
+        /* found directory, append default file and try again */
         if (fs.found && fs.isdir) {
             bstr_append_char(file_path, '/');
-            bstr_append_cstring_nolen(file_path, "index.html");
+            bstr_append_cstring_nolen(file_path, server->default_file);
             fs = get_file_stats(bstr_cstring(file_path));
         }
         /* found file */
@@ -212,6 +212,33 @@ write_response(int sock, bhttp_response *res)
     }
 }
 
+bvec *
+regex_match_handler(bhttp_req_handler *handler, bstr *uri_path)
+{
+    regmatch_t matches[10];
+    regex_t *preg = &handler->regex_buf;
+
+    int r = regexec(preg, bstr_cstring(uri_path), 10, matches, REG_EXTENDED);
+    /* error in regexec */
+    if (r != 0) return NULL;
+    /* no matches */
+    if (matches[0].rm_so == -1) return NULL;
+
+    bvec *matched_parts = malloc(sizeof(bvec));
+    bvec_init(matched_parts, (void (*)(void *)) bstr_free);
+    for (int i = 0; i < 10; i++)
+    {
+        if (matches[i].rm_so == -1) break;
+        bstr *part = bstr_new();
+        bstr_append_cstring(part,
+                            bstr_cstring(uri_path)+matches[i].rm_so,
+                            matches[i].rm_eo-matches[i].rm_so);
+        printf("match %d: %s\n", i, bstr_cstring(part));
+        bvec_add(matched_parts, part);
+    }
+    return matched_parts;
+}
+
 static int
 match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
 {
@@ -223,13 +250,27 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
             for (int i = 0; i < bvec_count(&server->handlers); i++)
             {
                 bhttp_req_handler *handler = bvec_get(&server->handlers, i);
-                printf("handler: %s\n", bstr_cstring(&handler->uri));
+                printf("handler: %s\n", bstr_cstring(&handler->match));
                 printf("URI: %s\n", bstr_cstring(&req->uri_path));
-                if (strcmp(bstr_cstring(&handler->uri), bstr_cstring(&req->uri_path)) == 0)
-                    return handler->f(req, res);
+
+                bvec *args;
+                switch(handler->type)
+                {
+                    case BHTTP_HANDLER_SIMPLE:
+                        if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
+                            return handler->f_simple(req, res);
+                        break;
+                    case BHTTP_HANDLER_REGEX:
+                        args = regex_match_handler(handler, &req->uri_path);
+                        if (args != NULL)
+                        {
+                            bvec_free(args);
+                            return handler->f_regex(req, res, args);
+                        }
+                        break;
+                }
             }
             default_file_handler(req, res);
-//            helloworld_text_handler(req, res);
         }
             break;
     }
@@ -260,7 +301,7 @@ do_connection(void * arg)
             bhttp_response res;
             bhttp_response_init(&res);
             match_handler(server, &request, &res);
-            write_response(conn_fd, &res);
+            write_response(server, &res, &request, conn_fd);
             bhttp_response_free(&res);
         }
         //write_log(server, &request, s);
@@ -316,12 +357,28 @@ http_server_run(bhttp_server *server)
 }
 
 int
-bhttp_server_add_handler(bhttp_server *server, const char * uri, int (*cb)(bhttp_request *req, bhttp_response *res))
+bhttp_add_simple_handler(bhttp_server *server, const char * uri, int (*cb)(bhttp_request *req, bhttp_response *res))
 {
     bhttp_req_handler *handler = malloc(sizeof(struct bhttp_req_handler));
-    bstr_init(&handler->uri);
-    bstr_append_cstring_nolen(&handler->uri, uri);
-    handler->f = cb;
+    handler->type = BHTTP_HANDLER_SIMPLE;
+    bstr_init(&handler->match);
+    bstr_append_cstring_nolen(&handler->match, uri);
+    handler->f_simple = cb;
+    bvec_add(&server->handlers, handler);
+    return 0;
+}
+
+int
+bhttp_add_regex_handler(bhttp_server *server,
+                        const char * uri,
+                        int (*cb)(bhttp_request *req, bhttp_response *res, bvec *args))
+{
+    bhttp_req_handler *handler = malloc(sizeof(struct bhttp_req_handler));
+    handler->type = BHTTP_HANDLER_REGEX;
+    bstr_init(&handler->match);
+    bstr_append_cstring_nolen(&handler->match, uri);
+    handler->f_regex = cb;
+    regcomp(&handler->regex_buf, bstr_cstring(&handler->match), REG_EXTENDED);
     bvec_add(&server->handlers, handler);
     return 0;
 }
@@ -351,7 +408,7 @@ write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
     // Log URI
     if (strcmp(http_method_str(request->method), "<unknown>") != 0)
     {
-//        fwrite(request->uri, 1, request->uri_len, f);
+//        fwrite(request->match, 1, request->uri_len, f_simple);
         fwrite(bstr_cstring(&(request->uri)), 1, bstr_size(&(request->uri)), f);
     }
     fwrite(" ", 1, 1, f);

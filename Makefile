@@ -5,7 +5,7 @@ src := $(filter-out src/http_parser.c,$(src))
 obj := $(src:.c=.o)
 CC := clang
 CFLAGS := -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -std=c99 -O3
-CWARN := -Wall -Weverything
+CWARN := -Wall
 INC := -lpthread
 
 all: $(proj)

@@ -68,6 +68,30 @@ helloworld_handler(bhttp_request *req, bhttp_response *res)
 }
 
 int
+helloworld_regex_handler(bhttp_request *req, bhttp_response *res, bvec *args)
+{
+    bhttp_res_add_header(res, "content-type", "text/html");
+    bstr bs;
+    bstr_init(&bs);
+    bstr_append_printf(&bs, "<html><p>Hello, Regex world! from URL: %s</p><p>%s</p><p>%s</p>",
+                       bstr_cstring(&req->uri),
+                       bstr_cstring(&req->uri_path),
+                       bstr_cstring(&req->uri_query));
+
+    for (int i = 0; i < bvec_count(args); i++)
+    {
+        bstr *arg = bvec_get(args, i);
+        bstr_append_printf(&bs, "<p>arg: %d: %s</p>", i, bstr_cstring(arg));
+    }
+    bstr_append_cstring_nolen(&bs, "</html>");
+
+    bhttp_res_set_body_text(res, bstr_cstring(&bs));
+    bstr_free_contents(&bs);
+    res->response_code = BHTTP_200_OK;
+    return 0;
+}
+
+int
 main(int argc, char **argv)
 {
 //    bhttp_server server = http_server_new();
@@ -91,7 +115,8 @@ main(int argc, char **argv)
 
     fflush(stdout);
 
-    bhttp_server_add_handler(&server, "/helloworld", helloworld_handler);
+    bhttp_add_simple_handler(&server, "/helloworld", helloworld_handler);
+    bhttp_add_regex_handler(&server, "^/([^/]*)$", helloworld_regex_handler);
     printf("count: %d\n", bvec_count(&server.handlers));
 
     http_server_run(&server);
