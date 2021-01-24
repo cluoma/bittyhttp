@@ -32,11 +32,76 @@ get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+static bhttp_handler *
+bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
+{
+    bhttp_handler *handler = malloc(sizeof(bhttp_handler));
+    if (handler == NULL) return NULL;
+
+    bstr_init(&handler->match);
+    if (bstr_append_cstring_nolen(&handler->match, uri) != BS_SUCCESS)
+    {
+        bstr_free_contents(&handler->match);
+        free(handler);
+        return NULL;
+    }
+
+    handler->type = bhttp_handler_type;
+    switch(bhttp_handler_type)
+    {
+        case BHTTP_HANDLER_SIMPLE:
+            handler->f_simple = cb;
+            break;
+        case BHTTP_HANDLER_REGEX:
+            handler->f_regex = cb;
+            if (regcomp(&handler->regex_buf, bstr_cstring(&handler->match), REG_EXTENDED) != 0)
+            {
+                bstr_free_contents(&handler->match);
+                free(handler);
+                return NULL;
+            }
+            break;
+        default:
+            bstr_free_contents(&handler->match);
+            free(handler);
+            return NULL;
+    }
+    return handler;
+}
+static void
+bhttp_handler_free(bhttp_handler *h)
+{
+    bstr_free_contents(&h->match);
+    free(h);
+}
+
+int
+bhttp_add_simple_handler(bhttp_server *server,
+                         const char * uri,
+                         int (*cb)(bhttp_request *req, bhttp_response *res))
+{
+    bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_SIMPLE, uri, cb);
+    if (h == NULL) return 1;
+    bvec_add(&server->handlers, h);
+    return 0;
+}
+
+int
+bhttp_add_regex_handler(bhttp_server *server,
+                        const char * uri,
+                        int (*cb)(bhttp_request *req, bhttp_response *res, bvec *args))
+{
+    bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_REGEX, uri, cb);
+    if (h == NULL) return 1;
+    bvec_add(&server->handlers, h);
+    return 0;
+}
+
 bhttp_server
 http_server_new()
 {
     bhttp_server server = HTTP_SERVER_DEFAULT;
-    bvec_init(&server.handlers, NULL);
+    bvec_init(&server.handlers, (void (*)(void *)) bhttp_handler_free);
     return server;
 }
 
@@ -213,18 +278,18 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
 }
 
 bvec *
-regex_match_handler(bhttp_req_handler *handler, bstr *uri_path)
+regex_match_handler(bhttp_handler *handler, bstr *uri_path)
 {
     regmatch_t matches[10];
     regex_t *preg = &handler->regex_buf;
 
-    int r = regexec(preg, bstr_cstring(uri_path), 10, matches, REG_EXTENDED);
-    /* error in regexec */
+    int r = regexec(preg, bstr_cstring(uri_path), 10, matches, 0);
+    /* no matches or error in regexec */
     if (r != 0) return NULL;
-    /* no matches */
-    if (matches[0].rm_so == -1) return NULL;
 
     bvec *matched_parts = malloc(sizeof(bvec));
+    if (matched_parts == NULL) return NULL;
+
     bvec_init(matched_parts, (void (*)(void *)) bstr_free);
     for (int i = 0; i < 10; i++)
     {
@@ -233,7 +298,7 @@ regex_match_handler(bhttp_req_handler *handler, bstr *uri_path)
         bstr_append_cstring(part,
                             bstr_cstring(uri_path)+matches[i].rm_so,
                             matches[i].rm_eo-matches[i].rm_so);
-        printf("match %d: %s\n", i, bstr_cstring(part));
+        //printf("match %d: %s\n", i, bstr_cstring(part));
         bvec_add(matched_parts, part);
     }
     return matched_parts;
@@ -249,11 +314,12 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
             /* match handlers here */
             for (int i = 0; i < bvec_count(&server->handlers); i++)
             {
-                bhttp_req_handler *handler = bvec_get(&server->handlers, i);
-                printf("handler: %s\n", bstr_cstring(&handler->match));
-                printf("URI: %s\n", bstr_cstring(&req->uri_path));
+                bhttp_handler *handler = bvec_get(&server->handlers, i);
+                //printf("handler: %s\n", bstr_cstring(&handler->match));
+                //printf("URI: %s\n", bstr_cstring(&req->uri_path));
 
                 bvec *args;
+                int r;
                 switch(handler->type)
                 {
                     case BHTTP_HANDLER_SIMPLE:
@@ -264,8 +330,9 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
                         args = regex_match_handler(handler, &req->uri_path);
                         if (args != NULL)
                         {
+                            r = handler->f_regex(req, res, args);
                             bvec_free(args);
-                            return handler->f_regex(req, res, args);
+                            return r;
                         }
                         break;
                 }
@@ -345,42 +412,17 @@ http_server_run(bhttp_server *server)
         thread_args *args = malloc(sizeof(thread_args));
         args->server = server;
         args->sock = conn_fd;
-        pthread_attr_init(&(args->attr));
-        pthread_attr_setdetachstate(&(args->attr), PTHREAD_CREATE_DETACHED);
-        int ret = pthread_create(&(args->threads), &(args->attr), do_connection, (void *)args);
+        pthread_attr_init(&args->attr);
+        pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
+        int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
         if (ret != 0)
         {
             printf("THREAD ERROR\n");
             return;
         }
+//        pthread_join(args->thread, NULL);
+//        return;
     }
-}
-
-int
-bhttp_add_simple_handler(bhttp_server *server, const char * uri, int (*cb)(bhttp_request *req, bhttp_response *res))
-{
-    bhttp_req_handler *handler = malloc(sizeof(struct bhttp_req_handler));
-    handler->type = BHTTP_HANDLER_SIMPLE;
-    bstr_init(&handler->match);
-    bstr_append_cstring_nolen(&handler->match, uri);
-    handler->f_simple = cb;
-    bvec_add(&server->handlers, handler);
-    return 0;
-}
-
-int
-bhttp_add_regex_handler(bhttp_server *server,
-                        const char * uri,
-                        int (*cb)(bhttp_request *req, bhttp_response *res, bvec *args))
-{
-    bhttp_req_handler *handler = malloc(sizeof(struct bhttp_req_handler));
-    handler->type = BHTTP_HANDLER_REGEX;
-    bstr_init(&handler->match);
-    bstr_append_cstring_nolen(&handler->match, uri);
-    handler->f_regex = cb;
-    regcomp(&handler->regex_buf, bstr_cstring(&handler->match), REG_EXTENDED);
-    bvec_add(&server->handlers, handler);
-    return 0;
 }
 
 void
@@ -408,7 +450,6 @@ write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
     // Log URI
     if (strcmp(http_method_str(request->method), "<unknown>") != 0)
     {
-//        fwrite(request->match, 1, request->uri_len, f_simple);
         fwrite(bstr_cstring(&(request->uri)), 1, bstr_size(&(request->uri)), f);
     }
     fwrite(" ", 1, 1, f);

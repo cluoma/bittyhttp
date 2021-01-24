@@ -55,6 +55,7 @@ parse_args(int argc, char **argv, bhttp_server *server)
 int
 helloworld_handler(bhttp_request *req, bhttp_response *res)
 {
+    bhttp_res_add_header(res, "content-type", "text/html");
     bstr bs;
     bstr_init(&bs);
     bstr_append_printf(&bs, "<html><p>Hello, world! from URL: %s</p><p>%s</p><p>%s</p></html>",
@@ -116,7 +117,8 @@ main(int argc, char **argv)
     fflush(stdout);
 
     bhttp_add_simple_handler(&server, "/helloworld", helloworld_handler);
-    bhttp_add_regex_handler(&server, "^/([^/]*)$", helloworld_regex_handler);
+    bhttp_add_regex_handler(&server, "^/api/([^/]*)$", helloworld_regex_handler);
+    bhttp_add_regex_handler(&server, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);
     printf("count: %d\n", bvec_count(&server.handlers));
 
     http_server_run(&server);

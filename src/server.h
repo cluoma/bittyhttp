@@ -29,11 +29,6 @@
 //#undef XX
 //};
 
-typedef enum {
-    BHTTP_HANDLER_SIMPLE = 0,
-    BHTTP_HANDLER_REGEX,
-} bhttp_handler_type;
-
 /* bhttp_server structures stores information about the current server */
 typedef struct bhttp_server
 {
@@ -69,13 +64,18 @@ static const bhttp_server HTTP_SERVER_DEFAULT = {
 
 typedef struct
 {
-    pthread_t threads;
+    pthread_t thread;
     pthread_attr_t attr;
     bhttp_server *server;
     int sock;
 } thread_args;
 
-typedef struct bhttp_req_handler
+typedef enum {
+    BHTTP_HANDLER_SIMPLE = 0,
+    BHTTP_HANDLER_REGEX,
+} bhttp_handler_type;
+
+typedef struct bhttp_handler
 {
     bhttp_handler_type type;
     uint32_t method;
@@ -84,7 +84,7 @@ typedef struct bhttp_req_handler
     int (*f_regex)(bhttp_request *req, bhttp_response *res, bvec *args);
     /* for regex */
     regex_t regex_buf;
-} bhttp_req_handler;
+} bhttp_handler;
 
 /* http server init and begin functions */
 bhttp_server http_server_new(void);
