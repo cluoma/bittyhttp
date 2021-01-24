@@ -10,7 +10,7 @@
 #define BITTYVEC_BITTYVEC_H
 
 /* bvec struct */
-typedef struct {
+typedef struct bvec {
     int capacity;
     int size;
     void** data;
