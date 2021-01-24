@@ -21,14 +21,13 @@
 typedef enum { BHTTP_RES_CODES } bhttp_res_codes;
 #undef C
 
-typedef struct file_stats file_stats;
-struct file_stats {
+typedef struct file_stats {
     int found;
     int isdir;
     long long bytes;
     char *name;
     char *extension;
-};
+} file_stats;
 
 typedef enum {
     BHTTP_RES_BODY_EMPTY = 0,
@@ -50,14 +49,12 @@ typedef struct bhttp_response {
 void bhttp_response_init(bhttp_response *res);
 void bhttp_response_free(bhttp_response *res);
 
-void handle_request(bhttp_request *req, bhttp_response *res);
 bstr * bhttp_res_headers_to_string(bhttp_response *res);
 
 /* interface for handlers */
 int bhttp_res_add_header(bhttp_response *res, const char *field, const char *value);
 bhttp_header *bhttp_res_get_header(bhttp_response *res, const char *field);
 int bhttp_res_set_body_text(bhttp_response *res, const char *s);
-int bhttp_res_set_body_file(bhttp_response *res, const char *s, int isabs);
 int bhttp_res_set_body_file_rel(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_abs(bhttp_response *res, const char *s);
 

@@ -76,23 +76,23 @@ bhttp_handler_free(bhttp_handler *h)
 }
 
 int
-bhttp_add_simple_handler(bhttp_server *server,
-                         const char * uri,
-                         int (*cb)(bhttp_request *req, bhttp_response *res))
+bhttp_add_simple_handler(bhttp_server *server, uint32_t methods, const char *uri,
+                         int (*cb)(bhttp_request *, bhttp_response *))
 {
     bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_SIMPLE, uri, cb);
     if (h == NULL) return 1;
+    h->methods = methods;
     bvec_add(&server->handlers, h);
     return 0;
 }
 
 int
-bhttp_add_regex_handler(bhttp_server *server,
-                        const char * uri,
-                        int (*cb)(bhttp_request *req, bhttp_response *res, bvec *args))
+bhttp_add_regex_handler(bhttp_server *server, uint32_t methods, const char *uri,
+                        int (*cb)(bhttp_request *, bhttp_response *, bvec *))
 {
     bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_REGEX, uri, cb);
     if (h == NULL) return 1;
+    h->methods = methods;
     bvec_add(&server->handlers, h);
     return 0;
 }
@@ -190,8 +190,11 @@ send_headers(int sock, bhttp_response *res)
 {
     bstr *header_text = bhttp_res_headers_to_string(res);
     //printf("%s", bstr_cstring(header_text));
-    send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+    ssize_t sent = send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+    if (sent < bstr_size(header_text))
+        return 1;
     bstr_free(header_text);
+    return 0;
 }
 
 static void
@@ -307,40 +310,39 @@ regex_match_handler(bhttp_handler *handler, bstr *uri_path)
 static int
 match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
 {
-    switch (req->method) {
-        case HTTP_POST:
-        case HTTP_GET:
-        {
-            /* match handlers here */
-            for (int i = 0; i < bvec_count(&server->handlers); i++)
-            {
-                bhttp_handler *handler = bvec_get(&server->handlers, i);
-                //printf("handler: %s\n", bstr_cstring(&handler->match));
-                //printf("URI: %s\n", bstr_cstring(&req->uri_path));
+    /* match handlers here */
+    for (int i = 0; i < bvec_count(&server->handlers); i++)
+    {
+        bhttp_handler *handler = bvec_get(&server->handlers, i);
+        if (!(handler->methods & req->method)) continue;
+        //printf("handler: %s\n", bstr_cstring(&handler->match));
+        //printf("URI: %s\n", bstr_cstring(&req->uri_path));
 
-                bvec *args;
-                int r;
-                switch(handler->type)
+        bvec *args;
+        int r;
+        switch(handler->type)
+        {
+            case BHTTP_HANDLER_SIMPLE:
+                if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
+                    return handler->f_simple(req, res);
+                break;
+            case BHTTP_HANDLER_REGEX:
+                args = regex_match_handler(handler, &req->uri_path);
+                if (args != NULL)
                 {
-                    case BHTTP_HANDLER_SIMPLE:
-                        if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
-                            return handler->f_simple(req, res);
-                        break;
-                    case BHTTP_HANDLER_REGEX:
-                        args = regex_match_handler(handler, &req->uri_path);
-                        if (args != NULL)
-                        {
-                            r = handler->f_regex(req, res, args);
-                            bvec_free(args);
-                            return r;
-                        }
-                        break;
+                    r = handler->f_regex(req, res, args);
+                    bvec_free(args);
+                    return r;
                 }
-            }
-            default_file_handler(req, res);
+                break;
         }
-            break;
     }
+    if (req->method & BHTTP_GET || req->method & BHTTP_HEAD)
+        default_file_handler(req, res);
+    else
+        /* TODO: create method not supported handler */
+        return 0;
+    return 0;
 }
 
 static void *
@@ -439,7 +441,7 @@ write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
     tm_info = gmtime(&timer);
     strftime(buffer, 26, "%Y:%m:%d-%H:%M:%S", tm_info);
 
-    // Log method
+    // Log methods
     fwrite(http_method_str(request->method), 1, strlen(http_method_str(request->method)), f);
     fwrite(" ", 1, 1, f);
 

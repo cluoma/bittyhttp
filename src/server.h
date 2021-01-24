@@ -15,19 +15,16 @@
 #include "respond.h"
 #include "mime_types.h"
 
-//#define BHTTP_METHOD_MAP(XX)         \
-//XX(0,  DELETE,      DELETE)       \
-//XX(1,  GET,         GET)          \
-//XX(2,  HEAD,        HEAD)         \
-//XX(3,  POST,        POST)         \
-//XX(4,  PUT,         PUT)
-//
-//enum bhttp_method
-//{
-//#define XX(num, name, string) BHTTP_##name = 1 << num,
-//    BHTTP_METHOD_MAP(XX)
-//#undef XX
-//};
+#define BHTTP_METHOD_MAP(C) \
+C(0,  DELETE)       \
+C(1,  GET)          \
+C(2,  HEAD)         \
+C(3,  POST)         \
+C(4,  PUT)
+
+#define C(num, name) BHTTP_##name = 1 << (num),
+typedef enum { BHTTP_UNSUPPORTED_METHOD = 0, BHTTP_METHOD_MAP(C) } bhttp_method;
+#undef C
 
 /* bhttp_server structures stores information about the current server */
 typedef struct bhttp_server
@@ -78,7 +75,7 @@ typedef enum {
 typedef struct bhttp_handler
 {
     bhttp_handler_type type;
-    uint32_t method;
+    uint32_t methods;
     bstr match;
     int (*f_simple)(bhttp_request *req, bhttp_response *res);
     int (*f_regex)(bhttp_request *req, bhttp_response *res, bvec *args);
@@ -93,10 +90,12 @@ void http_server_run(bhttp_server *server);
 
 /* add handlers */
 int bhttp_add_simple_handler(bhttp_server *server,
-                             const char * uri,
-                             int (*cb)(bhttp_request *req, bhttp_response *res));
+                             uint32_t methods,
+                             const char *uri,
+                             int (*cb)(bhttp_request *, bhttp_response *));
 int bhttp_add_regex_handler(bhttp_server *server,
-                            const char * uri,
-                            int (*cb)(bhttp_request *req, bhttp_response *res, bvec *args));
+                            uint32_t methods,
+                            const char *uri,
+                            int (*cb)(bhttp_request *, bhttp_response *, bvec *));
 
 #endif /* BITTYHTTP_SERVER_H */

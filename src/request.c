@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "request.h"
+#include "server.h"
 
 #define REQUEST_BUF_SIZE 1024
 
@@ -329,8 +330,8 @@ header_end_cb(http_parser* parser)
     if (url_to_path_and_query(req) != 0)
         return 1;
 
-    /* get http method */
-    req->method = (int)parser->method;
+    /* get http methods */
+    req->method = (int)parser->method > HTTP_PUT ? BHTTP_UNSUPPORTED_METHOD : 1 << (int)parser->method;
     /* check keep-live */
     if (http_should_keep_alive(parser) == 0)
         req->keep_alive = BHTTP_CLOSE;

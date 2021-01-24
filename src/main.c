@@ -4,7 +4,6 @@
 
 #include "server.h"
 
-
 static void
 parse_args(int argc, char **argv, bhttp_server *server)
 {
@@ -116,9 +115,9 @@ main(int argc, char **argv)
 
     fflush(stdout);
 
-    bhttp_add_simple_handler(&server, "/helloworld", helloworld_handler);
-    bhttp_add_regex_handler(&server, "^/api/([^/]*)$", helloworld_regex_handler);
-    bhttp_add_regex_handler(&server, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);
+    bhttp_add_simple_handler(&server, BHTTP_GET, "/helloworld", helloworld_handler);
+    bhttp_add_regex_handler(&server, BHTTP_GET, "^/api/([^/]*)$", helloworld_regex_handler);
+    bhttp_add_regex_handler(&server, BHTTP_GET | BHTTP_HEAD, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);
     printf("count: %d\n", bvec_count(&server.handlers));
 
     http_server_run(&server);
