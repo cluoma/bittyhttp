@@ -22,6 +22,8 @@
 #include "respond.h"
 #include "http_parser.h"
 
+#define MAX_REGEX_MATCHES 10
+
 static void *
 get_in_addr(struct sockaddr *sa)
 /* get network address structure */
@@ -283,10 +285,10 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
 bvec *
 regex_match_handler(bhttp_handler *handler, bstr *uri_path)
 {
-    regmatch_t matches[10];
+    regmatch_t matches[MAX_REGEX_MATCHES];
     regex_t *preg = &handler->regex_buf;
 
-    int r = regexec(preg, bstr_cstring(uri_path), 10, matches, 0);
+    int r = regexec(preg, bstr_cstring(uri_path), MAX_REGEX_MATCHES, matches, 0);
     /* no matches or error in regexec */
     if (r != 0) return NULL;
 
@@ -294,7 +296,7 @@ regex_match_handler(bhttp_handler *handler, bstr *uri_path)
     if (matched_parts == NULL) return NULL;
 
     bvec_init(matched_parts, (void (*)(void *)) bstr_free);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < MAX_REGEX_MATCHES; i++)
     {
         if (matches[i].rm_so == -1) break;
         bstr *part = bstr_new();
