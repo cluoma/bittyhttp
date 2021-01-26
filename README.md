@@ -1,14 +1,8 @@
 # bittyhttp
 
-A simple threaded HTTP library and webserver that implements a subset of HTTP/1.1 with no external dependencies.
+A simple threaded HTTP library and basic webserver for creating REST services.
 
-### Arguments
-
-- __-p [PORT]__ Port number
-- __-d [DOCROOT]__ Directory where files will be served from
-- __-b [BACKLOG]__ Backlog for accept()
-- __-l [LOGFILE]__ A path to a FILE
-- __-a__ run as a daemon
+### 
 
 
 Thanks to:    
