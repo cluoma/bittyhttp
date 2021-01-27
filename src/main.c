@@ -54,6 +54,22 @@ parse_args(int argc, char **argv, bhttp_server *server)
 }
 
 int
+abs_file_handler(bhttp_request *req, bhttp_response *res)
+{
+    bhttp_res_set_body_file_abs(res, "/home/colin/pics_to_video.txt");
+    res->response_code = BHTTP_200_OK;
+    return 0;
+}
+
+int
+rel_file_handler(bhttp_request *req, bhttp_response *res)
+{
+    bhttp_res_set_body_file_rel(res, "/hugo/404.html");
+    res->response_code = BHTTP_200_OK;
+    return 0;
+}
+
+int
 helloworld_handler(bhttp_request *req, bhttp_response *res)
 {
     bhttp_res_add_header(res, "content-type", "text/html");
@@ -154,6 +170,8 @@ main(int argc, char **argv)
 
     fflush(stdout);
 
+    bhttp_add_simple_handler(&server, BHTTP_GET, "/abs_file", abs_file_handler);
+    bhttp_add_simple_handler(&server, BHTTP_GET, "/rel_file", rel_file_handler);
     bhttp_add_simple_handler(&server, BHTTP_GET, "/helloworld", helloworld_handler);
     bhttp_add_regex_handler(&server, BHTTP_GET, "^/api/([^/]*)$", helloworld_regex_handler);
     bhttp_add_regex_handler(&server, BHTTP_GET | BHTTP_HEAD, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);

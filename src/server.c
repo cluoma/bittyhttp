@@ -228,7 +228,7 @@ static void
 write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, int sock)
 {
     bhttp_res_add_header(res, "server", "bittyhttp");
-    if (req->keep_alive)
+    if (req->keep_alive == BHTTP_KEEP_ALIVE)
         bhttp_res_add_header(res, "connection", "keep-alive");
 
     if (res->bodytype == BHTTP_RES_BODY_TEXT)
@@ -253,6 +253,7 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
         if (res->bodytype == BHTTP_RES_BODY_FILE_REL)
             bstr_append_cstring_nolen(file_path, server->docroot);
         bstr_append_cstring_nolen(file_path, bstr_cstring(&res->body));
+
         file_stats fs = get_file_stats(bstr_cstring(file_path));
         /* found directory, append default file and try again */
         if (fs.found && fs.isdir) {
@@ -273,12 +274,12 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
             send_headers(sock, res);
             /* send file contents */
             send_file(sock, bstr_cstring(file_path), fs.bytes, 1);
-            bstr_free(file_path);
-            return;
+        }
+        else
+        {
+            send_404_response(sock, res);
         }
         bstr_free(file_path);
-        send_404_response(sock, res);
-        return;
     }
 }
 
@@ -360,20 +361,20 @@ do_connection(void * arg)
     {
         /* read a new request */
         bhttp_request_init(&request);
-        int rcve = receive_data(&request, conn_fd);
-
-        /* handle request if no error returned */
-        if (rcve != BHTTP_REQ_OK)
+        int r = receive_data(&request, conn_fd);
+        /* error handling request, break, don't bother being nice */
+        if (r != BHTTP_REQ_OK)
         {
             bhttp_request_free(&request);
             break;
         }
+        /* handle request if no error returned */
         else
         {
             bhttp_response res;
             bhttp_response_init(&res);
-            match_handler(server, &request, &res);
-            write_response(server, &res, &request, conn_fd);
+            if (match_handler(server, &request, &res) == 0)
+                write_response(server, &res, &request, conn_fd);
             bhttp_response_free(&res);
         }
         //write_log(server, &request, s);
