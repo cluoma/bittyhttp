@@ -4,6 +4,8 @@
 
 #include "server.h"
 
+#include <curl/curl.h>
+
 static void
 parse_args(int argc, char **argv, bhttp_server *server)
 {
@@ -70,7 +72,6 @@ helloworld_handler(bhttp_request *req, bhttp_response *res)
 int
 helloworld_regex_handler(bhttp_request *req, bhttp_response *res, bvec *args)
 {
-    bhttp_res_add_header(res, "content-type", "text/html");
     bstr bs;
     bstr_init(&bs);
     bstr_append_printf(&bs, "<html><p>Hello, Regex world! from URL: %s</p><p>%s</p><p>%s</p>",
@@ -90,6 +91,41 @@ helloworld_regex_handler(bhttp_request *req, bhttp_response *res, bvec *args)
 
     bhttp_res_set_body_text(res, bstr_cstring(&bs));
     bstr_free_contents(&bs);
+    bhttp_res_add_header(res, "content-type", "text/html");
+    res->response_code = BHTTP_200_OK;
+    return 0;
+}
+
+size_t writefunc(void *ptr, size_t size, size_t nmemb, bstr *s)
+{
+    bstr_append_cstring(s, ptr, nmemb);
+    return nmemb;
+}
+int
+curl_handler(bhttp_request *req, bhttp_response *res, bvec *args)
+{
+    CURL *curl;
+    CURLcode result;
+    bstr *bs = bstr_new();
+
+    curl = curl_easy_init();
+    if(curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, "http://curl.se/libcurl/c/simple.html");
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writefunc);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, bs);
+
+
+        result = curl_easy_perform(curl);
+        if (result != CURLE_OK)
+            fprintf(stderr, "curl_easy_perform() failed: %s\n",
+                    curl_easy_strerror(result));
+        curl_easy_cleanup(curl);
+    }
+
+    bhttp_res_set_body_text(res, bstr_cstring(bs));
+    bstr_free(bs);
+    bhttp_res_add_header(res, "content-type", "text/html");
     res->response_code = BHTTP_200_OK;
     return 0;
 }
@@ -121,6 +157,7 @@ main(int argc, char **argv)
     bhttp_add_simple_handler(&server, BHTTP_GET, "/helloworld", helloworld_handler);
     bhttp_add_regex_handler(&server, BHTTP_GET, "^/api/([^/]*)$", helloworld_regex_handler);
     bhttp_add_regex_handler(&server, BHTTP_GET | BHTTP_HEAD, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);
+    bhttp_add_regex_handler(&server, BHTTP_GET, "^/curl$", curl_handler);
     printf("count: %d\n", bvec_count(&server.handlers));
 
     http_server_run(&server);

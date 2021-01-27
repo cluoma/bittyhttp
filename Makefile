@@ -6,12 +6,12 @@ obj := $(src:.c=.o)
 CC := clang
 CFLAGS := -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -std=c99 -O3
 CWARN := -Wall
-INC := -lpthread
+INC := -lpthread -lcurl
 
 all: $(proj)
 
 bittyhttp: $(obj) http_parser.o
-	$(CC) -o $@ $(CFLAGS) $^ -lpthread
+	$(CC) -o $@ $(CFLAGS) $^ $(INC)
 	rm -f $(obj)
 	rm -f http_parser.o
 
