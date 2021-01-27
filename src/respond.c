@@ -9,10 +9,7 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <sys/stat.h>
-#ifdef __linux__
 #include <sys/sendfile.h>
-#endif
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -132,19 +129,12 @@ send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
         }
 
         off_t len = 0;
-        #ifdef __APPLE__
-        if ( sendfile(f, sock, 0, &len, NULL, 0) < 0 )
-        {
-            printf("Mac: Sendfile error: %d\n", errno);
-        }
-        #elif __linux__
         ssize_t ret;
         while ( (ret = sendfile(sock, f, &len, file_size-sent)) > 0 )
         {
             sent += ret;
             if (sent >= (ssize_t)file_size) break;
         }
-        #endif
         close(f);
     }
     else

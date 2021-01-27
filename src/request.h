@@ -52,8 +52,8 @@ typedef struct bhttp_request {
 } bhttp_request;
 
 /* init and free */
-void init_request(bhttp_request *request);
-void free_request(bhttp_request *request);
+void bhttp_request_init(bhttp_request *request);
+void bhttp_request_free(bhttp_request *request);
 
 /* main functions to read request */
 int receive_data(bhttp_request *request, int sock);

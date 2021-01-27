@@ -47,7 +47,7 @@ init_parser(bhttp_request *request)
 }
 
 void
-init_request(bhttp_request *request)
+bhttp_request_init(bhttp_request *request)
 {
     request->keep_alive = BHTTP_CLOSE;
     bstr_init(&request->uri);
@@ -61,7 +61,7 @@ init_request(bhttp_request *request)
 }
 
 void
-free_request(bhttp_request *request)
+bhttp_request_free(bhttp_request *request)
 {
     bstr_free_contents(&request->uri);
     bstr_free_contents(&request->uri_path);

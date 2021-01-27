@@ -24,6 +24,9 @@
 
 #define MAX_REGEX_MATCHES 10
 
+/* TODO: handle HEAD requests properly */
+/* TODO: add keep-alive header when needed */
+
 static void *
 get_in_addr(struct sockaddr *sa)
 /* get network address structure */
@@ -110,25 +113,24 @@ http_server_new()
 int
 http_server_start(bhttp_server *server)
 {
-    struct addrinfo hints, *servinfo, *p;
+    struct addrinfo hints = {0};
+    struct addrinfo *servinfo, *p;
 
-    int rv;
     int yes = 1;
 
-    // Fill hints, all unused elements must be 0 or null
-    memset(&hints, 0, sizeof hints);
-    //hints.ai_family = AF_USPEC; // ipv4/6 don't care
-    hints.ai_family = AF_INET6;
+    hints.ai_family = AF_UNSPEC; // ipv4/6 don't care
+    //hints.ai_family = AF_INET6;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
-    // Get info for us
-    if ((rv = getaddrinfo(NULL, server->port, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "server: getaddrinfo: %s\n", gai_strerror(rv));
+    /* get info for us */
+    int r;
+    if ((r = getaddrinfo(NULL, server->port, &hints, &servinfo)) != 0) {
+        fprintf(stderr, "server: getaddrinfo: %s\n", gai_strerror(r));
         goto fail_start;
     }
 
-    // loop through all the results and bind to the first we can
+    /* try to find a socket to bind to */
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((server->sock = socket(p->ai_family, p->ai_socktype,
                                    p->ai_protocol)) == -1) {
@@ -148,8 +150,7 @@ http_server_start(bhttp_server *server)
     }
     freeaddrinfo(servinfo);
 
-    if (p == NULL ||
-        listen(server->sock, server->backlog) == -1)  {
+    if (p == NULL || listen(server->sock, server->backlog) == -1)  {
         goto fail_start;
     }
 
@@ -157,14 +158,14 @@ http_server_start(bhttp_server *server)
 
 fail_start:
     perror("Failed to start HTTP server");
-    return -1;
+    return 1;
 }
 
 // Needs a lot of work
 static file_stats
 get_file_stats(const char *file_path)
 {
-    file_stats fs;
+    file_stats fs = {0};
     struct stat s;
 
     if (stat(file_path, &s) == -1) {  // Error in stat
@@ -183,7 +184,6 @@ get_file_stats(const char *file_path)
         fs.found = 0;
         fs.isdir = 0;
     }
-
     return fs;
 }
 
@@ -343,6 +343,7 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
         default_file_handler(req, res);
     else
         /* TODO: create method not supported handler */
+        /* TODO: recheck flow to make sure requests are handled properly */
         return 0;
     return 0;
 }
@@ -358,13 +359,13 @@ do_connection(void * arg)
     while (1)
     {
         /* read a new request */
-        init_request(&request);
+        bhttp_request_init(&request);
         int rcve = receive_data(&request, conn_fd);
 
         /* handle request if no error returned */
         if (rcve != BHTTP_REQ_OK)
         {
-            free_request(&request);
+            bhttp_request_free(&request);
             break;
         }
         else
@@ -376,7 +377,7 @@ do_connection(void * arg)
             bhttp_response_free(&res);
         }
         //write_log(server, &request, s);
-        free_request(&request);
+        bhttp_request_free(&request);
         if (request.keep_alive == BHTTP_CLOSE)
             break;
     }
