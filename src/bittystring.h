@@ -16,6 +16,8 @@
 #define BS_MAX_CAPACITY (UINT64_MAX >> 1)
 #define BS_MAX_SSO_CAPACITY 23
 
+#define bstr_const_str(X) (X), ((uint64_t)sizeof(X)-1)
+
 #define RETURN_CODES    C(BS_SUCCESS, "All good\n")             \
                         C(BS_FAIL, "Function failed\n")
 #define C(k, v) k,
@@ -54,19 +56,19 @@ void bstr_free_contents(bstr *bs);
 /*
  * Accessors
  */
-uint64_t bstr_size(bstr *bs);
-uint64_t bstr_capacity(bstr *bs);
-const char * bstr_cstring(bstr *bs);
+uint64_t bstr_size(const bstr *bs);
+uint64_t bstr_capacity(const bstr *bs);
+const char * bstr_cstring(const bstr *bs);
 /*
  * Modifiers
  */
 int bstr_append_cstring(bstr *bs, const char *cs, uint64_t len);
 int bstr_append_cstring_nolen(bstr *bs, const char *cs);
-int bstr_append_char(bstr *bs, char c);
+int bstr_append_char(bstr *bs, const char c);
 int bstr_append_printf(bstr *bs, const char * format, ...);
 int bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len);
 int bstr_prepend_cstring_nolen(bstr *bs, const char *cs);
-int bstr_prepend_char(bstr *bs, char c);
+int bstr_prepend_char(bstr *bs, const char c);
 int bstr_prepend_printf(bstr *bs, const char * format, ...);
 
 #endif //BITTYSTRING_BITTYSTRING_H

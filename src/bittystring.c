@@ -29,7 +29,7 @@ next_power2(uint64_t x)
 {
     // if (x == 0) return 0;
 #ifdef __GNUC__
-//    printf("unsigned long long: %llu bytes\n", (uint64_t)sizeof(unsigned long long)*8);
+    //    printf("unsigned long long: %llu bytes\n", (uint64_t)sizeof(unsigned long long)*8);
 //    printf("x: %llu\n", x);
 //    printf("builtin of x: %d\n", __builtin_clzll(x));
 //    printf("bytes minus builtin: %llu\n", sizeof(unsigned long long)*8 - (uint64_t)__builtin_clzll(x));
@@ -54,42 +54,30 @@ bstr_set_sso_size(bstr *bs, uint8_t size)
 }
 
 uint64_t
-bstr_size(bstr *bs)
+bstr_size(const bstr *bs)
 {
     if (BSTR_IS_SSO(bs))
-    {
         return (uint64_t)BSTR_SSO_SIZE(bs);
-    }
     else
-    {
         return bs->ls.size;
-    }
 }
 
 uint64_t
-bstr_capacity(bstr *bs)
+bstr_capacity(const bstr *bs)
 {
     if (BSTR_IS_SSO(bs))
-    {
         return (uint64_t)BS_MAX_SSO_CAPACITY;
-    }
     else
-    {
         return bs->ls.capacity;
-    }
 }
 
 const char *
-bstr_cstring(bstr *bs)
+bstr_cstring(const bstr *bs)
 {
     if (BSTR_IS_SSO(bs))
-    {
         return bs->ss.short_str;
-    }
     else
-    {
         return bs->ls.buf;
-    }
 }
 
 bstr *
@@ -100,7 +88,6 @@ bstr_new(void)
         return NULL;
 
     bstr_init(bs);
-
     return bs;
 }
 
@@ -116,7 +103,6 @@ bstr_new_from_cstring(const char *cs, uint64_t len)
         bstr_free(bs);
         return NULL;
     }
-
     return bs;
 }
 
@@ -154,12 +140,6 @@ bstr_next_capacity(uint64_t size)
 static int
 bstr_expand_by(bstr *bs, uint64_t len)
 {
-#ifdef DEBUG
-    if (BSTR_IS_SSO(bs))
-        printf("original size: %" PRIu8 "\n", BSTR_SSO_SIZE(bs));
-    else
-        printf("original size: %" PRIu64 "\n", bs->size);
-#endif
     if (BSTR_IS_SSO(bs))
     {
         uint8_t sso_size = BSTR_SSO_SIZE(bs);
@@ -202,25 +182,12 @@ bstr_expand_by(bstr *bs, uint64_t len)
             }
         }
     }
-#ifdef DEBUG
-    if (BSTR_IS_SSO(bs))
-        printf("new size: %" PRIu8 "\n", BSTR_SSO_SIZE(bs));
-    else
-        printf("new size: %" PRIu64 "\n", bs->size);
-#endif
     return BS_SUCCESS;
 }
 
 int
 bstr_append_cstring(bstr *bs, const char *cs, uint64_t len)
 {
-#ifdef DEBUG
-    for (int i = 0; i < 24; i++)
-    {
-        printf("[%d]: %" PRIu8 "\n", i, bs->short_str[i]);
-    }
-    printf("[23]: %" PRIu64 "\n", bs->capacity);
-#endif
     if (len == 0) return BS_SUCCESS;
 
     if (bstr_expand_by(bs, len) != BS_SUCCESS)
@@ -246,13 +213,6 @@ bstr_append_cstring(bstr *bs, const char *cs, uint64_t len)
 int
 bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len)
 {
-#ifdef DEBUG
-    for (int i = 0; i < 24; i++)
-    {
-        printf("[%d]: %" PRIu8 "\n", i, bs->short_str[i]);
-    }
-    printf("[23]: %" PRIu64 "\n", bs->capacity);
-#endif
     if (len == 0) return BS_SUCCESS;
 
     if (bstr_expand_by(bs, len) != BS_SUCCESS)
@@ -290,13 +250,13 @@ bstr_prepend_cstring_nolen(bstr *bs, const char *cs)
 }
 
 int
-bstr_append_char(bstr *bs, char c)
+bstr_append_char(bstr *bs, const char c)
 {
     char cs[1]; *cs = c;
     return bstr_append_cstring(bs, cs, 1);
 }
 int
-bstr_prepend_char(bstr *bs, char c)
+bstr_prepend_char(bstr *bs, const char c)
 {
     char cs[1]; *cs = c;
     return bstr_prepend_cstring(bs, cs, 1);
