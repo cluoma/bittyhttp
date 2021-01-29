@@ -83,44 +83,6 @@ print_headers(bhttp_request *request)
     printf("\n");
 }
 
-//char *
-//sanitize_path(char *path)
-///* removes './' and '/../' from paths */
-//{
-//    char *token, *tofree;
-//    tofree = path;
-//
-//    char *clean = malloc(strlen(path) + 1);
-//    memset(clean, 0, strlen(path));
-//
-//    char **argv = malloc(sizeof(char *));
-//    int argc = 0;
-//
-//    // Tokenize
-//    while ((token = strsep(&path, "/")) != NULL) {
-//        if (strcmp(token, ".") == 0 || strcmp(token, "") == 0) {
-//            continue;
-//        } else if (strcmp(token, "..") == 0) {
-//            argc = MAX(--argc, 0);
-//        } else {
-//            argv[argc] = token;
-//            argc++;
-//            argv = realloc(argv, sizeof(char *) * (argc + 1));
-//        }
-//    }
-//
-//    // Combine cleaned filepath
-//    for (int i = 0; i < argc; i++) {
-//        strcat(clean, "/");
-//        strcat(clean, argv[i]);
-//    }
-//
-//    free(tofree);
-//    free(argv);
-//
-//    return clean;
-//}
-
 static int
 url_decode(const char *source, bstr *dest, size_t length)
 /* decodes URL strings to text (eg '+' -> ' ' and % hex codes) */
@@ -298,8 +260,6 @@ header_field_cb(http_parser* parser, const char *at, size_t length)
         if (bstr_append_char(&h->field, (char)tolower((unsigned char)at[i])) != BS_SUCCESS)
             return 1;
     }
-//    if (bstr_append_cstring(&h->field, at, length) != BS_SUCCESS)
-//        return 1;
     return 0;
 }
 

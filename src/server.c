@@ -187,6 +187,113 @@ get_file_stats(const char *file_path)
     return fs;
 }
 
+/*
+ * Modified buffer_path_simplify from lighttpd
+ * lighttpd1.4/src/buffer.c
+ * Distributed under BSD-3-Clause License
+ * Copyright (c) 2004, Jan Kneschke, incremental
+ * All rights reserved.
+ *
+ * - special case: empty string returns empty string
+ * - on windows or cygwin: replace \ with /
+ * - strip leading spaces
+ * - prepends "/" if not present already
+ *  My Comment: it doesn't actually do this, maybe it's a bug?
+ * - resolve "/../", "//" and "/./" the usual way:
+ *   the first one removes a preceding component, the other two
+ *   get compressed to "/".
+ * - "/." and "/.." at the end are similar, but always leave a trailing
+ *   "/"
+ *
+ * /blah/..         gets  /
+ * /blah/../foo     gets  /foo
+ * /abc/./xyz       gets  /abc/xyz
+ * /abc//xyz        gets  /abc/xyz
+ *
+ * NOTE: src and dest can point to the same buffer, in which case,
+ *       the operation is performed in-place.
+ */
+int
+clean_filepath(bstr *dest, const bstr *path)
+/* removes '//' '/./' and '/../' from path and appends to dest */
+{
+    /* current character, the one before, and the one before that from input */
+    char c, pre1, pre2;
+    const char *walk;
+    char *start, *slash, *out;
+
+    walk  = bstr_cstring(path);
+    start = calloc(bstr_size(path)+1, 1);
+    if (start == NULL)
+        return 1;
+    out   = start;
+    slash = start;
+
+    /* skip leading spaces */
+    while (*walk == ' ') {
+        walk++;
+    }
+    if (*walk == '.') {
+        if (walk[1] == '/' || walk[1] == '\0')
+            ++walk;
+        else if (walk[1] == '.' && (walk[2] == '/' || walk[2] == '\0'))
+            walk+=2;
+    }
+
+    pre1 = 0;
+    c = *(walk++);
+
+    while (c != '\0') {
+        /* assert((src != dest || out <= walk) && slash <= out); */
+        /* the following comments about out and walk are only interesting if
+         * src == dest; otherwise the memory areas don't overlap anyway.
+         */
+        pre2 = pre1;
+        pre1 = c;
+
+        /* possibly: out == walk - need to read first */
+        c    = *walk;
+        *out = pre1;
+
+        out++;
+        walk++;
+        /* (out <= walk) still true; also now (slash < out) */
+
+        if (c == '/' || c == '\0') {
+            const size_t toklen = out - slash;
+            if (toklen == 3 && pre2 == '.' && pre1 == '.' && *slash == '/') {
+                /* "/../" or ("/.." at end of string) */
+                out = slash;
+                /* if there is something before "/..", there is at least one
+                 * component, which needs to be removed */
+                if (out > start) {
+                    out--;
+                    while (out > start && *out != '/') out--;
+                }
+
+                /* don't kill trailing '/' at end of path */
+                if (c == '\0') out++;
+                /* slash < out before, so out_new <= slash + 1 <= out_before <= walk */
+            } else if (toklen == 1 || (pre2 == '/' && pre1 == '.')) {
+                /* "//" or "/./" or (("/" or "/.") at end of string) */
+                out = slash;
+                /* don't kill trailing '/' at end of path */
+                if (c == '\0') out++;
+                /* slash < out before, so out_new <= slash + 1 <= out_before <= walk */
+            }
+
+            slash = out;
+        }
+    }
+    if (bstr_append_cstring(dest, start, out - start) != BS_SUCCESS)
+    {
+        free(start);
+        return 1;
+    }
+    free(start);
+    return 0;
+}
+
 int
 send_headers(int sock, bhttp_response *res)
 {
@@ -251,8 +358,14 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
     {
         bstr *file_path = bstr_new();
         if (res->bodytype == BHTTP_RES_BODY_FILE_REL)
+        {
             bstr_append_cstring_nolen(file_path, server->docroot);
-        bstr_append_cstring_nolen(file_path, bstr_cstring(&res->body));
+            clean_filepath(file_path, &res->body);
+        }
+        else
+        {
+            bstr_append_cstring_nolen(file_path, bstr_cstring(&res->body));
+        }
 
         file_stats fs = get_file_stats(bstr_cstring(file_path));
         /* found directory, append default file and try again */
