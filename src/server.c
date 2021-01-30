@@ -6,12 +6,15 @@
 //  Copyright (c) 2016 Colin Luoma. All rights reserved.
 //
 
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/sendfile.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <time.h>
@@ -291,6 +294,62 @@ clean_filepath(bstr *dest, const bstr *path)
         return 1;
     }
     free(start);
+    return 0;
+}
+
+static int
+send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
+/* makes sure the send an entire file to sock */
+{
+    ssize_t sent = 0;
+    if (use_sendfile)
+    {
+        int f = open(file_path, O_RDONLY);
+        if ( f <= 0 )
+        {
+            printf("Cannot open file %d\n", errno);
+            return 1;
+        }
+
+        off_t len = 0;
+        ssize_t ret;
+        while ( (ret = sendfile(sock, f, &len, file_size-sent)) > 0 )
+        {
+            sent += ret;
+            if (sent >= (ssize_t)file_size) break;
+        }
+        close(f);
+    }
+    else
+    {
+        FILE *f = fopen(file_path, "rb");
+        if ( f == NULL )
+        {
+            printf("Cannot open file %d\n", errno);
+            return 1;
+        }
+
+        size_t len = 0;
+        char buf[TRANSFER_BUFFER];
+        while ( (len = fread(buf, 1, TRANSFER_BUFFER, f)) > 0 )
+        {
+            ssize_t ret  = 0;
+            while ( (ret = send(sock, buf+sent, len-sent, 0)) > 0 )
+            {
+                sent += ret;
+                if (sent >= (ssize_t)file_size) break;
+            }
+            if (ret < 0)
+            {
+                printf("ERROR!!!\n");
+                break;
+            }
+
+            // Check for being done, either fread error or eof
+            if (feof(f) || ferror(f)) {break;}
+        }
+        fclose(f);
+    }
     return 0;
 }
 
