@@ -1,10 +1,10 @@
-//
-//  mime_types.c
-//  MiniHTTP
-//
-//  Created by Colin Luoma on 2016-07-06.
-//  Copyright (c) 2016 Colin Luoma. All rights reserved.
-//
+/*
+ *  mime_types.c
+ *  bittyhttp
+ *
+ *  Created by Colin Luoma on 2021-01-30.
+ *  Copyright (c) 2021 Colin Luoma. All rights reserved.
+ */
 
 #include "mime_types.h"
 

@@ -1,10 +1,10 @@
-//
-//  server.c
-//  bittyhttp
-//
-//  Created by Colin Luoma on 2016-07-05.
-//  Copyright (c) 2016 Colin Luoma. All rights reserved.
-//
+/*
+ *  server.c
+ *  bittyhttp
+ *
+ *  Created by Colin Luoma on 2021-01-30.
+ *  Copyright (c) 2021 Colin Luoma. All rights reserved.
+ */
 
 #include <fcntl.h>
 #include <sys/socket.h>

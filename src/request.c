@@ -1,10 +1,10 @@
-//
-//  request.c
-//  bittyhttp
-//
-//  Created by Colin Luoma on 2016-06-27.
-//  Copyright (c) 2016 Colin Luoma. All rights reserved.
-//
+/*
+ *  request.c
+ *  bittyhttp
+ *
+ *  Created by Colin Luoma on 2021-01-30.
+ *  Copyright (c) 2021 Colin Luoma. All rights reserved.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>

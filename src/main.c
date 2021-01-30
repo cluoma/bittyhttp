@@ -1,3 +1,11 @@
+/*
+ *  main.c
+ *  bittyhttp
+ *
+ *  Created by Colin Luoma on 2021-01-30.
+ *  Copyright (c) 2021 Colin Luoma. All rights reserved.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

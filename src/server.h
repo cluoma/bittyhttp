@@ -1,10 +1,10 @@
-//
-//  server.h
-//  bittyhttp
-//
-//  Created by Colin Luoma on 2016-07-03.
-//  Copyright (c) 2016 Colin Luoma. All rights reserved.
-//
+/*
+ *  server.h
+ *  bittyhttp
+ *
+ *  Created by Colin Luoma on 2021-01-30.
+ *  Copyright (c) 2021 Colin Luoma. All rights reserved.
+ */
 
 #ifndef BITTYHTTP_SERVER_H
 #define BITTYHTTP_SERVER_H

@@ -1,10 +1,10 @@
-//
-//  request.h
-//  bittyhttp
-//
-//  Created by Colin Luoma on 2016-06-27.
-//  Copyright (c) 2016 Colin Luoma. All rights reserved.
-//
+/*
+ *  request.h
+ *  bittyhttp
+ *
+ *  Created by Colin Luoma on 2021-01-30.
+ *  Copyright (c) 2021 Colin Luoma. All rights reserved.
+ */
 
 #ifndef BITTYHTTP_REQUEST_H
 #define BITTYHTTP_REQUEST_H
