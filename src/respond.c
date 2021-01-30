@@ -21,7 +21,7 @@ static const char * bhttp_res_codes_string[] = { BHTTP_RES_CODES };
 void
 bhttp_response_init(bhttp_response *res)
 {
-    bvec_init(&res->headers, (void (*)(void *)) http_header_free);
+    bvec_init(&res->headers, (void (*)(void *)) bhttp_header_free);
     bstr_init(&res->body);
     res->bodytype = BHTTP_RES_BODY_EMPTY;
 }
@@ -38,14 +38,14 @@ int
 bhttp_res_add_header(bhttp_response *res, const char *field, const char *value)
 {
     /* first check that field name is valid */
-    if (http_header_name_verify(field))
+    if (bhttp_header_name_verify(field))
         return 1;
-    bhttp_header *h = http_header_new();
+    bhttp_header *h = bhttp_header_new();
     if (h == NULL) return 1;
     if (bstr_append_cstring_nolen(&(h->field), field) != 0 ||
         bstr_append_cstring_nolen(&(h->value), value) != 0)
     {
-        http_header_free(h);
+        bhttp_header_free(h);
         return 1;
     }
     bvec_add(&res->headers, h);

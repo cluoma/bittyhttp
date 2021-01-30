@@ -20,8 +20,8 @@ typedef struct bhttp_headers {
 
 } bhttp_headers;
 
-bhttp_header * http_header_new();
-void http_header_free(bhttp_header *h);
-int http_header_name_verify(const char *hfn);
+bhttp_header * bhttp_header_new();
+void bhttp_header_free(bhttp_header *h);
+int bhttp_header_name_verify(const char *hfn);
 
 #endif //BITTYHTTP_HEADER_H

@@ -9,7 +9,7 @@
 #include "header.h"
 
 bhttp_header *
-http_header_new()
+bhttp_header_new()
 {
     bhttp_header *h = malloc(sizeof(bhttp_header));
     if (h == NULL)
@@ -20,7 +20,7 @@ http_header_new()
 }
 
 void
-http_header_free(bhttp_header *h)
+bhttp_header_free(bhttp_header *h)
 {
     bstr_free_contents(&(h->field));
     bstr_free_contents(&(h->value));
@@ -28,11 +28,11 @@ http_header_free(bhttp_header *h)
 }
 
 int
-http_header_name_verify(const char *hfn)
+bhttp_header_name_verify(const char *hfn)
 /* checks that a header field names contains only valid characters
  * returns 0 on success 1 on failure */
 {
-/* illegal characters
+/* illegal characters from (https://www.ietf.org/rfc/rfc2616.txt)
     | "(" | ")" | "<" | ">" | "@"
     | "," | ";" | ":" | "\" | <">
     | "/" | "[" | "]" | "?" | "="

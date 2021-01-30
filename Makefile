@@ -2,6 +2,7 @@ proj := bittyhttp
 
 src := $(wildcard src/*.c)
 src := $(filter-out src/http_parser.c,$(src))
+src := $(filter-out src/main.c,$(src))
 obj := $(src:.c=.o)
 CC := clang
 CFLAGS := -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -std=c99 -O3
@@ -10,10 +11,18 @@ INC := -lpthread -lcurl
 
 all: $(proj)
 
-bittyhttp: $(obj) http_parser.o
+libbhttp.a: $(obj) http_parser.o
+	ar rcs libbhttp.a $^
+	rm -f $^
+
+bittyhttp: main.o $(obj) http_parser.o
 	$(CC) -o $@ $(CFLAGS) $^ $(INC)
+	rm -f main.o
 	rm -f $(obj)
 	rm -f http_parser.o
+
+main.o:
+	$(CC) $(CFLAGS) -o $@ -c src/main.c
 
 %.o: %.c
 	$(CC) $(CWARN) $(CFLAGS) -o $@ -c $<

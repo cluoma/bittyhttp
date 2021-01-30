@@ -53,7 +53,7 @@ bhttp_request_init(bhttp_request *request)
     bstr_init(&request->uri);
     bstr_init(&request->uri_path);
     bstr_init(&request->uri_query);
-    bvec_init(&request->headers, (void (*)(void *)) &http_header_free);
+    bvec_init(&request->headers, (void (*)(void *)) &bhttp_header_free);
     bstr_init(&request->body);
     request->done = 0;
     init_parser(request);
@@ -249,7 +249,7 @@ header_field_cb(http_parser* parser, const char *at, size_t length)
     /* if this is first header, or last cb was a value, make a new field */
     if (h == NULL || bstr_size(&h->value) > 0)
     {
-        h = http_header_new();
+        h = bhttp_header_new();
         if (h == NULL)
             return 1;
         bvec_add(headers, h);
