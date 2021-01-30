@@ -27,7 +27,7 @@ clean:
 	rm -f http_parser.o
 
 install:
-	sudo cp MiniHTTP /usr/local/bin/
-	sudo cp minihttp.service /etc/systemd/system/
-	sudo systemctl enable minihttp.service
-	sudo systemctl start minihttp.service
+	sudo cp bittyhttp /usr/local/bin/
+	sudo cp bittyhttp.service /etc/systemd/system/
+	sudo systemctl enable bittyhttp.service
+	sudo systemctl start bittyhttp.service

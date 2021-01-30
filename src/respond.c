@@ -42,10 +42,17 @@ bhttp_response_free(bhttp_response *res)
 int
 bhttp_res_add_header(bhttp_response *res, const char *field, const char *value)
 {
+    /* first check that field name is valid */
+    if (http_header_name_verify(field))
+        return 1;
     bhttp_header *h = http_header_new();
     if (h == NULL) return 1;
-    if (bstr_append_cstring_nolen(&(h->field), field) != 0) return 1;
-    if (bstr_append_cstring_nolen(&(h->value), value) != 0) return 1;
+    if (bstr_append_cstring_nolen(&(h->field), field) != 0 ||
+        bstr_append_cstring_nolen(&(h->value), value) != 0)
+    {
+        http_header_free(h);
+        return 1;
+    }
     bvec_add(&res->headers, h);
     return 0;
 }

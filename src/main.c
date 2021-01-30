@@ -73,6 +73,7 @@ int
 helloworld_handler(bhttp_request *req, bhttp_response *res)
 {
     bhttp_res_add_header(res, "content-type", "text/html");
+    bhttp_res_add_header(res, "content-t?ype", "text/html");
     bstr bs;
     bstr_init(&bs);
     bstr_append_printf(&bs, "<html><p>Hello, world! from URL: %s</p><p>%s</p><p>%s</p></html>",
