@@ -105,7 +105,8 @@ helloworld_regex_handler(bhttp_request *req, bhttp_response *res, bvec *args)
                        bstr_cstring(&req->uri_query));
 
     bhttp_header *h = bhttp_req_get_header(req, "accept-encoding");
-    bstr_append_printf(&bs, "<p><b>accept-encoding</b>: %s</p>", bstr_cstring(&h->value));
+    if (h)
+        bstr_append_printf(&bs, "<p><b>accept-encoding</b>: %s</p>", bstr_cstring(&h->value));
 
     for (int i = 0; i < bvec_count(args); i++)
     {
