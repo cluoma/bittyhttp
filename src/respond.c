@@ -23,6 +23,7 @@ bhttp_response_init(bhttp_response *res)
 {
     bvec_init(&res->headers, (void (*)(void *)) bhttp_header_free);
     bstr_init(&res->body);
+    res->response_code = BHTTP_200_OK;
     res->bodytype = BHTTP_RES_BODY_EMPTY;
 }
 
@@ -119,9 +120,9 @@ bhttp_res_headers_to_string(bhttp_response *res)
 int
 default_404_handler(bhttp_request *req, bhttp_response *res)
 {
-    res->response_code = BHTTP_200_OK;
+    res->response_code = BHTTP_404;
     bhttp_res_add_header(res, "content-type", "text/html");
-    bstr_append_cstring_nolen(&(res->body), "<html><p>404 Not Found</p></html>");
+    bstr_append_cstring_nolen(&(res->body), "<html><p>bittyhttp - 404 Not Found</p></html>");
     return 0;
 }
 

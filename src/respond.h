@@ -16,18 +16,11 @@
 #define BHTTP_RES_CODES C(BHTTP_200_OK, "200 OK")                   \
                         C(BHTTP_400, "400 Bad Request")             \
                         C(BHTTP_404, "404 Not Found")               \
-                        C(BHTTP_500, "500 Internal Server Error")
+                        C(BHTTP_500, "500 Internal Server Error")   \
+                        C(BHTTP_501, "501 Not Implemented")
 #define C(k, v) k,
 typedef enum { BHTTP_RES_CODES } bhttp_res_codes;
 #undef C
-
-typedef struct file_stats {
-    int found;
-    int isdir;
-    long long bytes;
-    char *name;
-    char *extension;
-} file_stats;
 
 typedef enum {
     BHTTP_RES_BODY_EMPTY = 0,
@@ -58,6 +51,7 @@ int bhttp_res_set_body_text(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_rel(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_abs(bhttp_response *res, const char *s);
 
+int default_404_handler(bhttp_request *req, bhttp_response *res);
 int default_file_handler(bhttp_request *req, bhttp_response *res);
 
 #endif /* BITTYHTTP_RESPOND_H */

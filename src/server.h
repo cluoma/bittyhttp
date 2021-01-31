@@ -59,6 +59,14 @@ static const bhttp_server HTTP_SERVER_DEFAULT = {
     .sock = 0
 };
 
+typedef struct file_stats {
+    int found;
+    int isdir;
+    long long bytes;
+    char *name;
+    char *extension;
+} file_stats;
+
 typedef struct
 {
     pthread_t thread;
@@ -66,6 +74,12 @@ typedef struct
     bhttp_server *server;
     int sock;
 } thread_args;
+
+typedef enum {
+    BH_HANDLER_OK = 0,
+    BH_HANDLER_NZ,     // handler returned non-zero
+    BH_HANDLER_NO_MATCH    // could not find a matching handler
+} bhttp_handler_err_code;
 
 typedef enum {
     BHTTP_HANDLER_SIMPLE = 0,

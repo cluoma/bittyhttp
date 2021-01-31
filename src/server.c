@@ -17,7 +17,6 @@
 #include <string.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <time.h>
 #include <pthread.h>
 #include <sys/stat.h>
 
@@ -28,17 +27,6 @@
 #define MAX_REGEX_MATCHES 10
 
 /* TODO: handle HEAD requests properly */
-/* TODO: add keep-alive header when needed */
-
-static void *
-get_in_addr(struct sockaddr *sa)
-/* get network address structure */
-{
-    if (sa->sa_family == AF_INET) {
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-    }
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
 
 static bhttp_handler *
 bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
@@ -372,6 +360,13 @@ send_500_response(int sock, bhttp_response *res)
     /* send header */
     send_headers(sock, res);
 }
+static void
+send_501_response(int sock, bhttp_response *res)
+{
+    res->response_code = BHTTP_501;
+    /* send header */
+    send_headers(sock, res);
+}
 
 static void
 send_404_response(int sock, bhttp_response *res)
@@ -463,7 +458,7 @@ regex_match_handler(bhttp_handler *handler, bstr *uri_path)
 
     int r = regexec(preg, bstr_cstring(uri_path), MAX_REGEX_MATCHES, matches, 0);
     /* no matches or error in regexec */
-    if (r != 0) return NULL;
+    if (r) return NULL;
 
     bvec *matched_parts = malloc(sizeof(bvec));
     if (matched_parts == NULL) return NULL;
@@ -485,6 +480,9 @@ regex_match_handler(bhttp_handler *handler, bstr *uri_path)
 static int
 match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
 {
+    /* return value from handlers */
+    int r;
+    /* TODO: should actually try and return 405 for matched paths */
     /* match handlers here */
     for (int i = 0; i < bvec_count(&server->handlers); i++)
     {
@@ -494,12 +492,14 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
         //printf("URI: %s\n", bstr_cstring(&req->uri_path));
 
         bvec *args;
-        int r;
         switch(handler->type)
         {
             case BHTTP_HANDLER_SIMPLE:
                 if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
-                    return handler->f_simple(req, res);
+                {
+                    r = handler->f_simple(req, res);
+                    return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+                }
                 break;
             case BHTTP_HANDLER_REGEX:
                 args = regex_match_handler(handler, &req->uri_path);
@@ -507,65 +507,96 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
                 {
                     r = handler->f_regex(req, res, args);
                     bvec_free(args);
-                    return r;
+                    return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
                 }
                 break;
         }
     }
+    /* no handler found, try serving a file */
     if (req->method & BHTTP_GET || req->method & BHTTP_HEAD)
-        default_file_handler(req, res);
+    {
+        r = default_file_handler(req, res);
+        return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+    }
     else
-        /* TODO: create method not supported handler */
-        /* TODO: recheck flow to make sure requests are handled properly */
-        return 0;
-    return 0;
+        return BH_HANDLER_NO_MATCH;
 }
 
 static void *
 do_connection(void * arg)
 {
     bhttp_server *server = ((thread_args *)arg)->server;
-    int conn_fd = ((thread_args *)arg)->sock;
+    int sock = ((thread_args *)arg)->sock;
 
-    bhttp_request request;
-    /* handle request while keep-alive requested */
-    while (1)
+    bhttp_request req;
+    /* handle req while keep-alive requested */
+    do
     {
-        /* read a new request */
-        bhttp_request_init(&request);
-        int r = receive_data(&request, conn_fd);
-        /* error handling request, break, don't bother being nice */
+        /* read a new req */
+        bhttp_request_init(&req);
+        int r = receive_data(&req, sock);
+        /* error handling req, break, don't bother being nice */
         if (r != BHTTP_REQ_OK)
         {
-            bhttp_request_free(&request);
+            bhttp_request_free(&req);
             break;
         }
-        /* handle request if no error returned */
+        /* handle req if no error returned */
         else
         {
             bhttp_response res;
             bhttp_response_init(&res);
-            if (match_handler(server, &request, &res) == 0)
-                write_response(server, &res, &request, conn_fd);
+            /* check http method */
+            if (req.method != BHTTP_UNSUPPORTED_METHOD)
+            {
+                int hr = match_handler(server, &req, &res);
+                if (hr == BH_HANDLER_OK)
+                {
+                    write_response(server, &res, &req, sock);
+                }
+                else if (hr == BH_HANDLER_NZ)
+                {
+                    send_500_response(sock, &res);
+                }
+                else if (hr == BH_HANDLER_NO_MATCH)
+                {
+                    send_404_response(sock, &res);
+                }
+            }
+            /* unsupported http method */
+            else
+            {
+                send_501_response(sock, &res);
+            }
             bhttp_response_free(&res);
         }
-        //write_log(server, &request, s);
-        bhttp_request_free(&request);
-        if (request.keep_alive == BHTTP_CLOSE)
-            break;
-    }
+        //write_log(server, &req, s);
+        bhttp_request_free(&req);
+//        if (req.keep_alive == BHTTP_CLOSE)
+//            break;
+    } while (req.keep_alive == BHTTP_KEEP_ALIVE);
     /* cleanup */
-    close(conn_fd);
+    close(sock);
     free(arg);
     return NULL;
 }
+
+//static void *
+//get_in_addr(struct sockaddr *sa)
+///* get network address structure */
+//{
+//    if (sa->sa_family == AF_INET) {
+//        return &(((struct sockaddr_in*)sa)->sin_addr);
+//    }
+//    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+//}
 
 void
 http_server_run(bhttp_server *server)
 /* start accepting connections */
 {
     /* file descriptor for accepted connections */
-    int conn_fd;
+    int con;
     /* client address information */
     struct sockaddr_storage their_addr;
     socklen_t sin_size;
@@ -575,27 +606,38 @@ http_server_run(bhttp_server *server)
     while(1) {
         sin_size = sizeof their_addr;
         //printf("Waiting on connection...\n");
-        conn_fd = accept(server->sock, (struct sockaddr *)&their_addr, &sin_size);
-        if (conn_fd == -1) {
+        con = accept(server->sock, (struct sockaddr *)&their_addr, &sin_size);
+        if (con == -1) {
             perror("accept");
             continue;
         }
 
         // Store client IP address into string s
-        inet_ntop(their_addr.ss_family,
-                  get_in_addr((struct sockaddr *)&their_addr),
-                  s, sizeof s);
+//        inet_ntop(their_addr.ss_family,
+//                  get_in_addr((struct sockaddr *)&their_addr),
+//                  s, sizeof s);
 
         /* start new thread to handle connection */
         thread_args *args = malloc(sizeof(thread_args));
-        args->server = server;
-        args->sock = conn_fd;
-        pthread_attr_init(&args->attr);
-        pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
-        int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
-        if (ret != 0)
+        if (args != NULL)
         {
-            printf("THREAD ERROR\n");
+            args->server = server;
+            args->sock = con;
+            pthread_attr_init(&args->attr);
+            pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
+            int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not create thread to handle connection\n");
+                free(args);
+                /* will stop the server */
+                return;
+            }
+        }
+        else
+        {
+            fprintf(stderr, "Could not allocate data for connection\n");
+            /* will stop the server */
             return;
         }
 //        pthread_join(args->thread, NULL);
@@ -603,38 +645,38 @@ http_server_run(bhttp_server *server)
     }
 }
 
-void
-write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
-{
-    FILE *f = fopen(server->log_file, "a"); // open for writing
-    if (f == NULL) return;
-
-    // Get current time
-    time_t timer;
-    char buffer[26];
-    struct tm* tm_info;
-    time(&timer);
-    tm_info = gmtime(&timer);
-    strftime(buffer, 26, "%Y:%m:%d-%H:%M:%S", tm_info);
-
-    // Log methods
-    fwrite(http_method_str(request->method), 1, strlen(http_method_str(request->method)), f);
-    fwrite(" ", 1, 1, f);
-
-    // Log client ip
-    fwrite(client_ip, 1, strlen(client_ip), f);
-    fwrite(" ", 1, 1, f);
-
-    // Log URI
-    if (strcmp(http_method_str(request->method), "<unknown>") != 0)
-    {
-        fwrite(bstr_cstring(&(request->uri)), 1, bstr_size(&(request->uri)), f);
-    }
-    fwrite(" ", 1, 1, f);
-
-    // Log GMT timestamp
-    fwrite(buffer, 1, strlen(buffer), f);
-    fwrite("\n", 1, 1, f);
-
-    fclose(f);
-}
+//void
+//write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
+//{
+//    FILE *f = fopen(server->log_file, "a"); // open for writing
+//    if (f == NULL) return;
+//
+//    // Get current time
+//    time_t timer;
+//    char buffer[26];
+//    struct tm* tm_info;
+//    time(&timer);
+//    tm_info = gmtime(&timer);
+//    strftime(buffer, 26, "%Y:%m:%d-%H:%M:%S", tm_info);
+//
+//    // Log methods
+//    fwrite(http_method_str(request->method), 1, strlen(http_method_str(request->method)), f);
+//    fwrite(" ", 1, 1, f);
+//
+//    // Log client ip
+//    fwrite(client_ip, 1, strlen(client_ip), f);
+//    fwrite(" ", 1, 1, f);
+//
+//    // Log URI
+//    if (strcmp(http_method_str(request->method), "<unknown>") != 0)
+//    {
+//        fwrite(bstr_cstring(&(request->uri)), 1, bstr_size(&(request->uri)), f);
+//    }
+//    fwrite(" ", 1, 1, f);
+//
+//    // Log GMT timestamp
+//    fwrite(buffer, 1, strlen(buffer), f);
+//    fwrite("\n", 1, 1, f);
+//
+//    fclose(f);
+//}
