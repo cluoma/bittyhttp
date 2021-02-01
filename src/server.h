@@ -30,6 +30,7 @@ typedef enum { BHTTP_UNSUPPORTED_METHOD = 0, BHTTP_METHOD_MAP(C) } bhttp_method;
 typedef struct bhttp_server
 {
     /* basic config */
+    char *ip;
     char *port;
     char *docroot;
     char *log_file;
@@ -49,9 +50,10 @@ typedef struct bhttp_server
 
 /* Default bhttp_server values for when arguments are missing */
 static const bhttp_server HTTP_SERVER_DEFAULT = {
+    .ip = NULL,
     .port = "3490",
     .backlog = 10,
-    .docroot = "./docroot",
+    .docroot = "./www",
     .log_file = "./bittblog.log",
     .default_file = "index.html",
     .use_sendfile = 0,
@@ -98,9 +100,9 @@ typedef struct bhttp_handler
 } bhttp_handler;
 
 /* http server init and begin functions */
-bhttp_server http_server_new(void);
-int http_server_start(bhttp_server *server);
-void http_server_run(bhttp_server *server);
+bhttp_server bhttp_server_new(void);
+int bhttp_server_bind(bhttp_server *server);
+void bhttp_server_run(bhttp_server *server);
 
 /* add handlers */
 int bhttp_add_simple_handler(bhttp_server *server,

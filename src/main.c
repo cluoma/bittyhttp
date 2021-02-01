@@ -14,52 +14,52 @@
 
 #include <curl/curl.h>
 
-static void
-parse_args(int argc, char **argv, bhttp_server *server)
-{
-    int c;
-    while ((c = getopt(argc, argv, "p:d:b:f:al:s")) != -1) {
-        switch (c) {
-            case 'p':
-                server->port = optarg;
-                break;
-            case 'd':
-                server->docroot = optarg;
-                break;
-            case 'b':
-                server->backlog = atoi(optarg);
-                break;
-            case 'f':
-                server->default_file = optarg;
-                break;
-            case 'a':
-                server->daemon = 1;
-                break;
-            case 'l':
-                server->log_file = optarg;
-                break;
-            case 's':
-                server->use_sendfile = 1;
-                break;
-            case '?':
-                if (optopt == 'c' || optopt == 'd' || optopt == 'b')
-                {
-                    fprintf(stderr, "Error: -%c option missing\n", optopt);
-                    exit(1);
-                }
-                else
-                {
-                    fprintf(stderr, "Error: -%c unknown option\n", optopt);
-                    exit(1);
-                }
-                break;
-            default:
-                fprintf(stderr, "Error parsing options\nExiting...");
-                exit(1);
-        }
-    }
-
-}
+//static void
+//parse_args(int argc, char **argv, bhttp_server *server)
+//{
+//    int c;
+//    while ((c = getopt(argc, argv, "p:d:b:f:al:s")) != -1) {
+//        switch (c) {
+//            case 'p':
+//                server->port = optarg;
+//                break;
+//            case 'd':
+//                server->docroot = optarg;
+//                break;
+//            case 'b':
+//                server->backlog = atoi(optarg);
+//                break;
+//            case 'f':
+//                server->default_file = optarg;
+//                break;
+//            case 'a':
+//                server->daemon = 1;
+//                break;
+//            case 'l':
+//                server->log_file = optarg;
+//                break;
+//            case 's':
+//                server->use_sendfile = 1;
+//                break;
+//            case '?':
+//                if (optopt == 'c' || optopt == 'd' || optopt == 'b')
+//                {
+//                    fprintf(stderr, "Error: -%c option missing\n", optopt);
+//                    exit(1);
+//                }
+//                else
+//                {
+//                    fprintf(stderr, "Error: -%c unknown option\n", optopt);
+//                    exit(1);
+//                }
+//                break;
+//            default:
+//                fprintf(stderr, "Error parsing options\nExiting...");
+//                exit(1);
+//        }
+//    }
+//
+//}
 
 int
 abs_file_handler(bhttp_request *req, bhttp_response *res)
@@ -159,9 +159,9 @@ curl_handler(bhttp_request *req, bhttp_response *res, bvec *args)
 int
 main(int argc, char **argv)
 {
-//    bhttp_server server = http_server_new();
-    bhttp_server server = HTTP_SERVER_DEFAULT; bvec_init(&server.handlers, NULL);
-    parse_args(argc, argv, &server);
+    bhttp_server server = bhttp_server_new();
+//    bhttp_server server = HTTP_SERVER_DEFAULT; bvec_init(&server.handlers, NULL);
+//    parse_args(argc, argv, &server);
 
     if (server.daemon)
     {
@@ -175,7 +175,7 @@ main(int argc, char **argv)
     printf("Starting bittyhttp with:\n port: %s\n backlog: %d\n docroot: %s\n logfile: %s\n default file: %s\n\n",
            server.port, server.backlog, server.docroot, server.log_file, server.default_file);
 
-    if (http_server_start(&server) != 0)
+    if (bhttp_server_bind(&server) != 0)
       return 1;
 
     fflush(stdout);
@@ -188,7 +188,7 @@ main(int argc, char **argv)
     bhttp_add_regex_handler(&server, BHTTP_GET, "^/curl$", curl_handler);
     printf("count: %d\n", bvec_count(&server.handlers));
 
-    http_server_run(&server);
+    bhttp_server_run(&server);
 //    http_server_close()
 
     return 0;

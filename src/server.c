@@ -94,7 +94,7 @@ bhttp_add_regex_handler(bhttp_server *server, uint32_t methods, const char *uri,
 }
 
 bhttp_server
-http_server_new()
+bhttp_server_new()
 {
     bhttp_server server = HTTP_SERVER_DEFAULT;
     bvec_init(&server.handlers, (void (*)(void *)) bhttp_handler_free);
@@ -102,39 +102,40 @@ http_server_new()
 }
 
 int
-http_server_start(bhttp_server *server)
+bhttp_server_bind(bhttp_server *server)
 {
     struct addrinfo hints = {0};
     struct addrinfo *servinfo, *p;
 
     int yes = 1;
 
-    hints.ai_family = AF_UNSPEC; // ipv4/6 don't care
-    //hints.ai_family = AF_INET6;
+    /* ipv4 or 6 */
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; // use my IP
+    /* use self ip */
+    hints.ai_flags = AI_PASSIVE;
 
-    /* get info for us */
+    /* get info */
     int r;
-    if ((r = getaddrinfo(NULL, server->port, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "server: getaddrinfo: %s\n", gai_strerror(r));
-        goto fail_start;
+    if ((r = getaddrinfo(server->ip, server->port, &hints, &servinfo)) != 0) {
+        fprintf(stderr, "error getting addrinfo: %s\n", gai_strerror(r));
+        return 1;
     }
 
     /* try to find a socket to bind to */
     for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((server->sock = socket(p->ai_family, p->ai_socktype,
-                                   p->ai_protocol)) == -1) {
-            perror("server: socket");
+        if ((server->sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+            perror("error creating socket");
             continue;
         }
-        if (setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &yes,
-                       sizeof(int)) == -1) {
-            goto fail_start;
+        if (setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+            close(server->sock);
+            freeaddrinfo(servinfo);
+            return 1;
         }
         if (bind(server->sock, p->ai_addr, p->ai_addrlen) == -1) {
             close(server->sock);
-            perror("server: bind");
+            perror("error binding socket");
             continue;
         }
         break;
@@ -142,14 +143,11 @@ http_server_start(bhttp_server *server)
     freeaddrinfo(servinfo);
 
     if (p == NULL || listen(server->sock, server->backlog) == -1)  {
-        goto fail_start;
+        perror("failed to start server");
+        return 1;
     }
 
     return 0;
-
-fail_start:
-    perror("Failed to start HTTP server");
-    return 1;
 }
 
 // Needs a lot of work
@@ -572,8 +570,6 @@ do_connection(void * arg)
         }
         //write_log(server, &req, s);
         bhttp_request_free(&req);
-//        if (req.keep_alive == BHTTP_CLOSE)
-//            break;
     } while (req.keep_alive == BHTTP_KEEP_ALIVE);
     /* cleanup */
     close(sock);
@@ -592,7 +588,7 @@ do_connection(void * arg)
 //}
 
 void
-http_server_run(bhttp_server *server)
+bhttp_server_run(bhttp_server *server)
 /* start accepting connections */
 {
     /* file descriptor for accepted connections */
@@ -625,10 +621,21 @@ http_server_run(bhttp_server *server)
             args->sock = con;
             pthread_attr_init(&args->attr);
             pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
+
+//            pthread_attr_setinheritsched(&args->attr, PTHREAD_EXPLICIT_SCHED);
+//            pthread_attr_setschedpolicy(&args->attr, SCHED_FIFO);
+//            int fifo_max_prio = sched_get_priority_max(SCHED_FIFO);
+//            int fifo_min_prio = sched_get_priority_min(SCHED_FIFO);
+//            int fifo_mid_prio = (fifo_min_prio + fifo_max_prio)/2;
+//            struct sched_param fifo_param;
+//            fifo_param.sched_priority = fifo_mid_prio;
+//            pthread_attr_setschedparam(&args->attr, &fifo_param);
+
             int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
             if (ret != 0)
             {
                 fprintf(stderr, "Could not create thread to handle connection\n");
+                if (ret == EPERM) fprintf(stderr, "attr");
                 free(args);
                 /* will stop the server */
                 return;
