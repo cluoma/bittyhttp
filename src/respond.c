@@ -111,7 +111,11 @@ bhttp_res_headers_to_string(bhttp_response *res)
     for (int i = 0; i < bvec_count(&res->headers); i++)
     {
         bhttp_header *h = bvec_get(&res->headers, i);
-        bstr_append_printf(header_text, "%s: %s\r\n", bstr_cstring(&h->field), bstr_cstring(&h->value));
+//        bstr_append_printf(header_text, "%s: %s\r\n", bstr_cstring(&h->field), bstr_cstring(&h->value));
+        bstr_append_cstring(header_text, bstr_cstring(&h->field), bstr_size(&h->field));
+        bstr_append_cstring(header_text, bstr_const_str(": "));
+        bstr_append_cstring(header_text, bstr_cstring(&h->value), bstr_size(&h->value));
+        bstr_append_cstring(header_text, bstr_const_str("\r\n"));
     }
     bstr_append_cstring(header_text, "\r\n", 2);
     return header_text;
