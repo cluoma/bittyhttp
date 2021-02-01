@@ -10,7 +10,7 @@ In addition to simply serving files, `bittyhttp` also has several different hand
 
 Simple handlers must match the uri path exactly.
 
-```{c}
+```c
 int
 helloworld_handler(bhttp_request *req, bhttp_response *res)
 {
@@ -37,7 +37,7 @@ bhttp_add_simple_handler(&server, BHTTP_GET, "/helloworld", helloworld_handler);
 
 Regex handlers use Linux's POSIX regex library to match on the uri path. Any matched groups will also be passed to the handler function.
 
-```{c}
+```c
 int
 helloworld_regex_handler(bhttp_request *req, bhttp_response *res, bvec *args)
 {
@@ -79,7 +79,7 @@ Instead of using `bhttp_res_set_body_text`, we can use the function `bhttp_set_b
 
 If `bittyhttp` cannot read the file or the file is not found, a 404 message is returned.
 
-```{c}
+```c
 int
 rel_file_handler(bhttp_request *req, bhttp_response *res)
 {
