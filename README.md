@@ -73,7 +73,7 @@ bhttp_add_regex_handler(&server, BHTTP_GET | BHTTP_HEAD, "^/api/([^/]+)/([^/]+)$
 
 ### File Handlers
 
-Instead of using `bhttp_res_set_body_text`, we can use the function `bhttp_set_body_file_rel/abs` to return a file. This is more efficient than putting than supplying the binary data ourselves because `bittyhttp` can make use of `sendfile` to avoid unecessary data copying.
+Instead of using `bhttp_res_set_body_text`, we can use the function `bhttp_set_body_file_rel/abs` to return a file. This is more efficient than than supplying the binary data ourselves because `sendfile` can avoid unecessary data copying.
 
 `bhttp_res_set_body_file_rel` will append the uri path to `bittyhttp`s docroot. `bhttp_res_set_body_file_abs` will take the given filepath as is, and try to serve it.
 
