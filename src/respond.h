@@ -11,8 +11,6 @@
 
 #include <stdio.h>
 
-#define TRANSFER_BUFFER 10240
-
 #define BHTTP_RES_CODES C(BHTTP_200_OK, "200 OK")                   \
                         C(BHTTP_400, "400 Bad Request")             \
                         C(BHTTP_404, "404 Not Found")               \

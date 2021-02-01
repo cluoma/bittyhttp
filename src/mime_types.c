@@ -20,6 +20,7 @@ typedef struct {
 static http_mime http_mime_types[] = {
     {"txt", "text/plain"},
     {"jpg", "image/jpg"},
+    {"jpeg", "image/jpg"},
     {"gif", "image/gif"},
     {"png", "image/png"},
     {"html", "text/html"},
@@ -40,5 +41,5 @@ mime_from_ext(char *ext)
         }
     }
     
-    return "text/plain";
+    return "application/octet-stream";
 }

@@ -15,6 +15,8 @@
 #include "respond.h"
 #include "mime_types.h"
 
+#define SEND_BUFFER_SIZE 4096
+
 #define BHTTP_METHOD_MAP(C) \
 C(0,  DELETE)       \
 C(1,  GET)          \

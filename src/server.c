@@ -107,8 +107,6 @@ bhttp_server_bind(bhttp_server *server)
     struct addrinfo hints = {0};
     struct addrinfo *servinfo, *p;
 
-    int yes = 1;
-
     /* ipv4 or 6 */
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -128,7 +126,8 @@ bhttp_server_bind(bhttp_server *server)
             perror("error creating socket");
             continue;
         }
-        if (setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+        int turnon = 1;
+        if (setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &turnon, sizeof(int)) == -1) {
             close(server->sock);
             freeaddrinfo(servinfo);
             return 1;
@@ -206,6 +205,8 @@ int
 clean_filepath(bstr *dest, const bstr *path)
 /* removes '//' '/./' and '/../' from path and appends to dest */
 {
+    /* store return codes */
+    int r;
     /* current character, the one before, and the one before that from input */
     char c, pre1, pre2;
     const char *walk;
@@ -239,7 +240,6 @@ clean_filepath(bstr *dest, const bstr *path)
          */
         pre2 = pre1;
         pre1 = c;
-
         /* possibly: out == walk - need to read first */
         c    = *walk;
         *out = pre1;
@@ -259,7 +259,6 @@ clean_filepath(bstr *dest, const bstr *path)
                     out--;
                     while (out > start && *out != '/') out--;
                 }
-
                 /* don't kill trailing '/' at end of path */
                 if (c == '\0') out++;
                 /* slash < out before, so out_new <= slash + 1 <= out_before <= walk */
@@ -270,17 +269,15 @@ clean_filepath(bstr *dest, const bstr *path)
                 if (c == '\0') out++;
                 /* slash < out before, so out_new <= slash + 1 <= out_before <= walk */
             }
-
             slash = out;
         }
     }
-    if (bstr_append_cstring(dest, start, out - start) != BS_SUCCESS)
-    {
-        free(start);
-        return 1;
-    }
+    r = bstr_append_cstring(dest, start, out - start);
     free(start);
-    return 0;
+    if (r != BS_SUCCESS)
+        return 1;
+    else
+        return 0;
 }
 
 static int
@@ -293,48 +290,63 @@ send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
         int f = open(file_path, O_RDONLY);
         if ( f <= 0 )
         {
-            printf("Cannot open file %d\n", errno);
+            fprintf(stderr, "Cannot open file %d\n", errno);
             return 1;
         }
-
         off_t len = 0;
         ssize_t ret;
-        while ( (ret = sendfile(sock, f, &len, file_size-sent)) > 0 )
+        while ((ret = sendfile(sock, f, &len, file_size-sent)) > 0)
         {
             sent += ret;
             if (sent >= (ssize_t)file_size) break;
         }
         close(f);
+        if (ret == -1)
+        {
+            perror("sendfile error");
+            return 1;
+        }
     }
     else
     {
         FILE *f = fopen(file_path, "rb");
         if ( f == NULL )
         {
-            printf("Cannot open file %d\n", errno);
+            fprintf(stderr, "Cannot open file %d\n", errno);
             return 1;
         }
-
-        size_t len = 0;
-        char buf[TRANSFER_BUFFER];
-        while ( (len = fread(buf, 1, TRANSFER_BUFFER, f)) > 0 )
+        size_t len;
+        char buf[SEND_BUFFER_SIZE];
+        int bad = 0;
+        while ((len = fread(buf, 1, SEND_BUFFER_SIZE, f)) > 0)
         {
-            ssize_t ret  = 0;
-            while ( (ret = send(sock, buf+sent, len-sent, 0)) > 0 )
+            if (len < SEND_BUFFER_SIZE)
+            {
+                /* check error or end-of-file */
+                if (ferror(f))
+                {
+                    perror("fread error");
+                    bad = 1;
+                    break;
+                }
+                else if (feof(f)) {}
+            }
+            sent = 0;
+            ssize_t ret;
+            while ((ret = send(sock, buf+sent, len-sent, 0)) > 0)
             {
                 sent += ret;
                 if (sent >= (ssize_t)file_size) break;
             }
-            if (ret < 0)
+            if (ret == -1)
             {
-                printf("ERROR!!!\n");
+                perror("send error");
+                bad = 1;
                 break;
             }
-
-            // Check for being done, either fread error or eof
-            if (feof(f) || ferror(f)) {break;}
         }
         fclose(f);
+        if (bad) return 1;
     }
     return 0;
 }
@@ -621,16 +633,6 @@ bhttp_server_run(bhttp_server *server)
             args->sock = con;
             pthread_attr_init(&args->attr);
             pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
-
-//            pthread_attr_setinheritsched(&args->attr, PTHREAD_EXPLICIT_SCHED);
-//            pthread_attr_setschedpolicy(&args->attr, SCHED_FIFO);
-//            int fifo_max_prio = sched_get_priority_max(SCHED_FIFO);
-//            int fifo_min_prio = sched_get_priority_min(SCHED_FIFO);
-//            int fifo_mid_prio = (fifo_min_prio + fifo_max_prio)/2;
-//            struct sched_param fifo_param;
-//            fifo_param.sched_priority = fifo_mid_prio;
-//            pthread_attr_setschedparam(&args->attr, &fifo_param);
-
             int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
             if (ret != 0)
             {
