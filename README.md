@@ -1,10 +1,12 @@
 # bittyhttp
 
-A simple threaded HTTP library and basic webserver for creating REST services.
+A threaded HTTP library and basic webserver for creating REST services in C.
 
 ## Examples
 
 In addition to simply serving files, `bittyhttp` also has several different handler types that the user can define. Check out `main.c` for even more examples.
+
+Handlers are matched in the order they are added. If two handlers would match the same uri path, then the handler added first will get the callback.
 
 ### Simple Handler
 
