@@ -68,6 +68,8 @@ static void
 bhttp_handler_free(bhttp_handler *h)
 {
     bstr_free_contents(&h->match);
+    if (h->type == BHTTP_HANDLER_REGEX)
+        regfree(&h->regex_buf);
     free(h);
 }
 
@@ -93,12 +95,89 @@ bhttp_add_regex_handler(bhttp_server *server, uint32_t methods, const char *uri,
     return 0;
 }
 
-bhttp_server
+bhttp_server *
 bhttp_server_new()
 {
-    bhttp_server server = HTTP_SERVER_DEFAULT;
-    bvec_init(&server.handlers, (void (*)(void *)) bhttp_handler_free);
+    bhttp_server *server = malloc(sizeof(bhttp_server));
+    server->ip = NULL;
+    server->port = strdup("3490");
+    server->docroot = strdup("./www");
+    server->log_file = strdup("./bittblog.log");
+    server->default_file = strdup("index.html");
+    server->backlog = 10;
+    server->use_sendfile = 1;
+    server->daemon = 0;
+    server->sock = 0;
+    bvec_init(&server->handlers, (void (*)(void *)) bhttp_handler_free);
+
+    if (server->port == NULL || server->docroot == NULL ||
+        server->log_file == NULL || server->default_file == NULL)
+    {
+        bhttp_server_free(server);
+        return NULL;
+    }
     return server;
+}
+
+void
+bhttp_server_free(bhttp_server *server)
+{
+    if (server->ip != NULL) free(server->ip);
+    if (server->port != NULL) free(server->port);
+    if (server->docroot != NULL) free(server->docroot);
+    if (server->log_file != NULL) free(server->log_file);
+    if (server->default_file != NULL) free(server->default_file);
+    bvec_free_contents(&server->handlers);
+    free(server);
+}
+
+int
+bhttp_server_set_ip(bhttp_server *server, const char *ip)
+{
+    if (server->ip != NULL)
+        free(server->ip);
+    if (ip == NULL)
+    {
+        server->ip = NULL;
+        return 0;
+    }
+    server->ip = strdup(ip);
+    if (server->ip == NULL)
+        return 1;
+    return 0;
+}
+
+static int
+arg_replace(char **dest, const char *src)
+{
+    if (src == NULL)
+        return 1;
+
+    char *new = strdup(src);
+    if (new == NULL)
+        return 1;
+
+    free(*dest);
+    *dest = new;
+    return 0;
+}
+
+int
+bhttp_server_set_port(bhttp_server *server, const char *port)
+{
+    return arg_replace(&server->port, port);
+}
+
+int
+bhttp_server_set_docroot(bhttp_server *server, const char *docroot)
+{
+    return arg_replace(&server->docroot, docroot);
+}
+
+int
+bhttp_server_set_dfile(bhttp_server *server, const char *dfile)
+{
+    return arg_replace(&server->default_file, dfile);
 }
 
 int
@@ -450,7 +529,7 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
             /* send header */
             send_headers(sock, res);
             /* send file contents */
-            send_file(sock, bstr_cstring(file_path), fs.bytes, 1);
+            send_file(sock, bstr_cstring(file_path), fs.bytes, server->use_sendfile);
         }
         else
         {
@@ -589,16 +668,6 @@ do_connection(void * arg)
     return NULL;
 }
 
-//static void *
-//get_in_addr(struct sockaddr *sa)
-///* get network address structure */
-//{
-//    if (sa->sa_family == AF_INET) {
-//        return &(((struct sockaddr_in*)sa)->sin_addr);
-//    }
-//    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-//}
-
 void
 bhttp_server_run(bhttp_server *server)
 /* start accepting connections */
@@ -619,11 +688,6 @@ bhttp_server_run(bhttp_server *server)
             perror("accept");
             continue;
         }
-
-        // Store client IP address into string s
-//        inet_ntop(their_addr.ss_family,
-//                  get_in_addr((struct sockaddr *)&their_addr),
-//                  s, sizeof s);
 
         /* start new thread to handle connection */
         thread_args *args = malloc(sizeof(thread_args));
@@ -653,39 +717,3 @@ bhttp_server_run(bhttp_server *server)
 //        return;
     }
 }
-
-//void
-//write_log(bhttp_server *server, bhttp_request *request, char *client_ip)
-//{
-//    FILE *f = fopen(server->log_file, "a"); // open for writing
-//    if (f == NULL) return;
-//
-//    // Get current time
-//    time_t timer;
-//    char buffer[26];
-//    struct tm* tm_info;
-//    time(&timer);
-//    tm_info = gmtime(&timer);
-//    strftime(buffer, 26, "%Y:%m:%d-%H:%M:%S", tm_info);
-//
-//    // Log methods
-//    fwrite(http_method_str(request->method), 1, strlen(http_method_str(request->method)), f);
-//    fwrite(" ", 1, 1, f);
-//
-//    // Log client ip
-//    fwrite(client_ip, 1, strlen(client_ip), f);
-//    fwrite(" ", 1, 1, f);
-//
-//    // Log URI
-//    if (strcmp(http_method_str(request->method), "<unknown>") != 0)
-//    {
-//        fwrite(bstr_cstring(&(request->uri)), 1, bstr_size(&(request->uri)), f);
-//    }
-//    fwrite(" ", 1, 1, f);
-//
-//    // Log GMT timestamp
-//    fwrite(buffer, 1, strlen(buffer), f);
-//    fwrite("\n", 1, 1, f);
-//
-//    fclose(f);
-//}

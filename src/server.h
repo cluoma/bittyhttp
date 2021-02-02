@@ -50,18 +50,18 @@ typedef struct bhttp_server
     int sock;
 } bhttp_server;
 
-/* Default bhttp_server values for when arguments are missing */
-static const bhttp_server HTTP_SERVER_DEFAULT = {
-    .ip = NULL,
-    .port = "3490",
-    .backlog = 10,
-    .docroot = "./www",
-    .log_file = "./bittblog.log",
-    .default_file = "index.html",
-    .use_sendfile = 0,
-    .daemon = 0,
-    .sock = 0
-};
+///* Default bhttp_server values for when arguments are missing */
+//static const bhttp_server HTTP_SERVER_DEFAULT = {
+//    .ip = NULL,
+//    .port = "3490",
+//    .backlog = 10,
+//    .docroot = "./www",
+//    .log_file = "./bittblog.log",
+//    .default_file = "index.html",
+//    .use_sendfile = 0,
+//    .daemon = 0,
+//    .sock = 0
+//};
 
 typedef struct file_stats {
     int found;
@@ -102,7 +102,12 @@ typedef struct bhttp_handler
 } bhttp_handler;
 
 /* http server init and begin functions */
-bhttp_server bhttp_server_new(void);
+bhttp_server * bhttp_server_new(void);
+void bhttp_server_free(bhttp_server *server);
+int bhttp_server_set_ip(bhttp_server *server, const char *ip);
+int bhttp_server_set_port(bhttp_server *server, const char *port);
+int bhttp_server_set_docroot(bhttp_server *server, const char *docroot);
+int bhttp_server_set_dfile(bhttp_server *server, const char *dfile);
 int bhttp_server_bind(bhttp_server *server);
 void bhttp_server_run(bhttp_server *server);
 
