@@ -2,7 +2,29 @@
 
 A threaded HTTP library and basic webserver for creating REST services in C.
 
-## Examples
+## Basic Usage
+
+```c
+#include "server.h"
+
+int helloworld_handler(bhttp_request *req, bhttp_response *res);
+
+int
+main(int argc, char **argv)
+{
+    bhttp_server server = bhttp_server_new();
+    if (bhttp_server_bind(&server) != 0)
+      return 1;
+    bhttp_add_simple_handler(&server,
+                             BHTTP_GET | BHTTP_POST,  // declare supported http methods
+                             "/helloworld",           // pattern to match uri path
+                             helloworld_handler);     // callback function pointer
+    bhttp_server_run(&server);
+    return 0;
+}
+```
+
+## Handlers
 
 In addition to simply serving files, `bittyhttp` also has several different handler types that the user can define. Check out `main.c` for even more examples.
 
