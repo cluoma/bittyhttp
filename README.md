@@ -12,14 +12,23 @@ int helloworld_handler(bhttp_request *req, bhttp_response *res);
 int
 main(int argc, char **argv)
 {
-    bhttp_server server = bhttp_server_new();
-    if (bhttp_server_bind(&server) != 0)
-      return 1;
-    bhttp_add_simple_handler(&server,
+    bhttp_server *server = bhttp_server_new();
+    if (server == NULL) return 1;
+    
+    bhttp_server_set_ip(server, "0.0.0.0");
+    bhttp_server_set_port(server, "8989");
+    bhttp_server_set_docroot(server, "./www");
+    bhttp_server_set_dfile(server, "index.html");
+    
+    if (bhttp_server_bind(server) != 0) return 1;
+    
+    bhttp_add_simple_handler(server,
                              BHTTP_GET | BHTTP_POST,  // declare supported http methods
                              "/helloworld",           // pattern to match uri path
                              helloworld_handler);     // callback function pointer
-    bhttp_server_run(&server);
+    
+    bhttp_server_run(server);
+    
     return 0;
 }
 ```
