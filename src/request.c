@@ -285,7 +285,7 @@ header_end_cb(http_parser* parser)
         return 1;
 
     /* get http methods */
-    req->method = (int)parser->method > HTTP_PUT ? BHTTP_UNSUPPORTED_METHOD : 1 << (int)parser->method;
+    req->method = (int)parser->method > HTTP_TRACE ? BHTTP_UNSUPPORTED_METHOD : 1 << (int)parser->method;
     /* check keep-live */
     if (http_should_keep_alive(parser) == 0)
         req->keep_alive = BHTTP_CLOSE;

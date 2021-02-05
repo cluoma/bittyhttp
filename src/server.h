@@ -22,7 +22,10 @@ C(0,  DELETE)       \
 C(1,  GET)          \
 C(2,  HEAD)         \
 C(3,  POST)         \
-C(4,  PUT)
+C(4,  PUT)          \
+C(5,  CONNECT)      \
+C(6,  OPTIONS)      \
+C(7,  TRACE)
 
 #define C(num, name) BHTTP_##name = 1 << (num),
 typedef enum { BHTTP_UNSUPPORTED_METHOD = 0, BHTTP_METHOD_MAP(C) } bhttp_method;
