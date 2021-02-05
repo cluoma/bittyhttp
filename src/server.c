@@ -481,7 +481,12 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
     if (req->keep_alive == BHTTP_KEEP_ALIVE)
         bhttp_res_add_header(res, "connection", "keep-alive");
 
-    if (res->bodytype == BHTTP_RES_BODY_TEXT)
+    if (res->bodytype == BHTTP_RES_BODY_EMPTY)
+    {
+        /* send full HTTP response header */
+        send_headers(sock, res);
+    }
+    else if (res->bodytype == BHTTP_RES_BODY_TEXT)
     {
         /* check 'content-type', add default if missing */
         bhttp_header *h = bhttp_res_get_header(res, "content-type");
