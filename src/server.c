@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 #include "server.h"
 #include "respond.h"
@@ -360,6 +361,23 @@ clean_filepath(bstr *dest, const bstr *path)
 }
 
 static int
+send_buffer(int sock, const char *buf, size_t len)
+{
+    /* block SIGPIPE */
+    sigset_t new, old;
+    sigemptyset(&new);
+    sigaddset(&new, SIGPIPE);
+    pthread_sigmask(SIG_BLOCK, &new, &old);
+    /* send buffer data */
+    ssize_t sent = send(sock, buf, len, 0);
+    /* unblock SIGPIPE */
+    pthread_sigmask(SIG_SETMASK, &old, NULL);
+
+    if (sent < len) return 1;
+    return 0;
+}
+
+static int
 send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
 /* makes sure the send an entire file to sock */
 {
@@ -412,6 +430,7 @@ send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
             }
             sent = 0;
             ssize_t ret;
+            /* TODO: fix this send call to block SIGPIPE */
             while ((ret = send(sock, buf+sent, len-sent, 0)) > 0)
             {
                 sent += ret;
@@ -433,10 +452,14 @@ send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
 int
 send_headers(int sock, bhttp_response *res)
 {
+    int r;
     bstr *header_text = bhttp_res_headers_to_string(res);
     //printf("%s", bstr_cstring(header_text));
-    ssize_t sent = send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
-    if (sent < bstr_size(header_text))
+//    ssize_t sent = send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
+//    if (sent < bstr_size(header_text))
+//        return 1;
+    r = send_buffer(sock, bstr_cstring(header_text), (size_t)bstr_size(header_text));
+    if (r != 0)
         return 1;
     bstr_free(header_text);
     return 0;
@@ -471,7 +494,8 @@ send_404_response(int sock, bhttp_response *res)
     /* send header */
     send_headers(sock, res);
     /* send body */
-    send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
+    send_buffer(sock, bstr_cstring(&res->body), (size_t)bstr_size(&res->body));
+//    send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
 }
 
 static void
@@ -499,7 +523,8 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
         /* send full HTTP response header */
         send_headers(sock, res);
         /* send body */
-        send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
+        send_buffer(sock, bstr_cstring(&res->body), (size_t)bstr_size(&res->body));
+//        send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
     }
     else if (res->bodytype == BHTTP_RES_BODY_FILE_REL ||
              res->bodytype == BHTTP_RES_BODY_FILE_ABS)
