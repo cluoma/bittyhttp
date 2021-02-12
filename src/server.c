@@ -363,16 +363,8 @@ clean_filepath(bstr *dest, const bstr *path)
 static int
 send_buffer(int sock, const char *buf, size_t len)
 {
-    /* block SIGPIPE */
-    sigset_t new, old;
-    sigemptyset(&new);
-    sigaddset(&new, SIGPIPE);
-    pthread_sigmask(SIG_BLOCK, &new, &old);
     /* send buffer data */
-    ssize_t sent = send(sock, buf, len, 0);
-    /* unblock SIGPIPE */
-    pthread_sigmask(SIG_SETMASK, &old, NULL);
-
+    ssize_t sent = send(sock, buf, len, MSG_NOSIGNAL);
     if (sent < len) return 1;
     return 0;
 }
@@ -430,8 +422,7 @@ send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
             }
             sent = 0;
             ssize_t ret;
-            /* TODO: fix this send call to block SIGPIPE */
-            while ((ret = send(sock, buf+sent, len-sent, 0)) > 0)
+            while ((ret = send(sock, buf+sent, len-sent, MSG_NOSIGNAL)) > 0)
             {
                 sent += ret;
                 if (sent >= (ssize_t)file_size) break;
