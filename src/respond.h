@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #define BHTTP_RES_CODES C(BHTTP_200_OK, "200 OK")                   \
+                        C(BHTTP_204, "204 No Content" )             \
                         C(BHTTP_400, "400 Bad Request")             \
                         C(BHTTP_404, "404 Not Found")               \
                         C(BHTTP_500, "500 Internal Server Error")   \
