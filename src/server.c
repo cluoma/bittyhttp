@@ -445,10 +445,6 @@ send_headers(int sock, bhttp_response *res)
 {
     int r;
     bstr *header_text = bhttp_res_headers_to_string(res);
-    //printf("%s", bstr_cstring(header_text));
-//    ssize_t sent = send(sock, bstr_cstring(header_text), bstr_size(header_text), 0);
-//    if (sent < bstr_size(header_text))
-//        return 1;
     r = send_buffer(sock, bstr_cstring(header_text), (size_t)bstr_size(header_text));
     if (r != 0)
         return 1;
@@ -486,7 +482,6 @@ send_404_response(int sock, bhttp_response *res)
     send_headers(sock, res);
     /* send body */
     send_buffer(sock, bstr_cstring(&res->body), (size_t)bstr_size(&res->body));
-//    send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
 }
 
 static void
@@ -515,7 +510,6 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
         send_headers(sock, res);
         /* send body */
         send_buffer(sock, bstr_cstring(&res->body), (size_t)bstr_size(&res->body));
-//        send(sock, bstr_cstring(&res->body), bstr_size(&res->body), 0);
     }
     else if (res->bodytype == BHTTP_RES_BODY_FILE_REL ||
              res->bodytype == BHTTP_RES_BODY_FILE_ABS)
