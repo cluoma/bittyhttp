@@ -124,6 +124,10 @@ rel_file_handler(bhttp_request *req, bhttp_response *res)
 bhttp_add_simple_handler(&server, BHTTP_GET, "/rel_file", rel_file_handler);
 ```
 
+## Sites Using bittyhttp
+
+* [squid poll](https://squidpoll.com/) - create and share polls for fun. it's squidtastic!
+
 ## Roadmap
 
 In the future I would like to add the following features to `bittyhttp`:
