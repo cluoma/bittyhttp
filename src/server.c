@@ -365,6 +365,7 @@ send_buffer(int sock, const char *buf, size_t len)
 {
     /* send buffer data */
     ssize_t sent = send(sock, buf, len, MSG_NOSIGNAL);
+    if ( sent < 0 ) return 1;
     if (sent < len) return 1;
     return 0;
 }
