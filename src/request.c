@@ -17,6 +17,25 @@
 
 #define REQUEST_BUF_SIZE 1024
 
+static const char unhex_tbl[256] = {
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        0, 1, 2, 3, 4, 5, 6, 7,  8, 9,-1,-1,-1,-1,-1,-1,
+        -1,10,11,12,13,14,15,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,10,11,12,13,14,15,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1
+};
+
 /*
  * Request parsing callback functions
  * all callbacks return 0 on success, non-zero otherwise
@@ -86,27 +105,33 @@ print_headers(bhttp_request *request)
 
 static int
 url_decode(const char *source, bstr *dest, size_t length)
-/* decodes URL strings to text (eg '+' -> ' ' and % hex codes) */
+/* decodes URL string and append to dest (eg '+' -> ' ' and % hex codes) */
 {
     size_t n = 0;
-    while (*source != '\0' && n < length ) {
-        if (*source == '+') {
-            if (bstr_append_char(dest, ' ') != 0)
+    char c, hex1, hex2;
+    if (source == NULL || length == 0)
+    {
+        return 0;
+    }
+
+    while((c = *source) != '\0' && n < length)
+    {
+        if(c == '%')
+        {
+            if((hex1 = unhex_tbl[(unsigned char)*++source]) < 0 ||
+               (hex2 = unhex_tbl[(unsigned char)*++source]) < 0) {
                 return 1;
-        }
-        else if (*source == '%') {
-            int hex_char;
-            sscanf(source+1, "%2x", &hex_char);
-            if (bstr_append_char(dest, (char)hex_char) != 0)
-                return 1;
-            source += 2;
+            }
+            c = (hex1 << 4) | hex2;
             n += 2;
-        } else {
-            if (bstr_append_char(dest, *source) != 0)
-                return 1;
         }
-        source++;
+        else if (c == '+')
+        {
+            c = ' ';
+        }
+        bstr_append_char(dest, c);
         n++;
+        source ++;
     }
     return 0;
 }
@@ -127,7 +152,6 @@ url_to_path_and_query(bhttp_request *req)
                            &req->uri_path,
                            req->parser_url.field_data[UF_PATH].len);
         if (r != 0) return 1;
-        /* TODO: implement sanitize URL for /./ and /../ */
     }
     else
         return 1;
