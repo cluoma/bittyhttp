@@ -27,6 +27,47 @@
 
 #define MAX_REGEX_MATCHES 10
 
+typedef struct file_stats {
+    int found;
+    int isdir;
+    long long bytes;
+    char *name;
+    char *extension;
+} file_stats;
+
+typedef struct
+{
+    pthread_t thread;
+    pthread_attr_t attr;
+    bhttp_server *server;
+    int sock;
+} thread_args;
+
+typedef enum {
+    BH_HANDLER_OK = 0,
+    BH_HANDLER_NZ,     // handler returned non-zero
+    BH_HANDLER_NO_MATCH    // could not find a matching handler
+} bhttp_handler_err_code;
+
+typedef enum {
+    BHTTP_HANDLER_SIMPLE = 0,
+    BHTTP_HANDLER_REGEX,
+} bhttp_handler_type;
+
+union handler_callback {
+    int (*f_simple)(bhttp_request *req, bhttp_response *res);
+    int (*f_regex)(bhttp_request *req, bhttp_response *res, bvec *args);
+};
+typedef struct bhttp_handler
+{
+    bhttp_handler_type type;
+    uint32_t methods;
+    bstr match;
+    union handler_callback cb;
+    /* for regex */
+    regex_t regex_buf;
+} bhttp_handler;
+
 /* TODO: handle HEAD requests properly */
 
 static bhttp_handler *
@@ -47,10 +88,10 @@ bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
     switch(bhttp_handler_type)
     {
         case BHTTP_HANDLER_SIMPLE:
-            handler->f_simple = cb;
+            handler->cb.f_regex = cb;
             break;
         case BHTTP_HANDLER_REGEX:
-            handler->f_regex = cb;
+            handler->cb.f_regex = cb;
             if (regcomp(&handler->regex_buf, bstr_cstring(&handler->match), REG_EXTENDED) != 0)
             {
                 bstr_free_contents(&handler->match);
@@ -602,7 +643,7 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
             case BHTTP_HANDLER_SIMPLE:
                 if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
                 {
-                    r = handler->f_simple(req, res);
+                    r = handler->cb.f_simple(req, res);
                     return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
                 }
                 break;
@@ -610,7 +651,7 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
                 args = regex_match_handler(handler, &req->uri_path);
                 if (args != NULL)
                 {
-                    r = handler->f_regex(req, res, args);
+                    r = handler->cb.f_regex(req, res, args);
                     bvec_free(args);
                     return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
                 }

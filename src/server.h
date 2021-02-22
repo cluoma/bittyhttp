@@ -53,57 +53,6 @@ typedef struct bhttp_server
     int sock;
 } bhttp_server;
 
-///* Default bhttp_server values for when arguments are missing */
-//static const bhttp_server HTTP_SERVER_DEFAULT = {
-//    .ip = NULL,
-//    .port = "3490",
-//    .backlog = 10,
-//    .docroot = "./www",
-//    .log_file = "./bittblog.log",
-//    .default_file = "index.html",
-//    .use_sendfile = 0,
-//    .daemon = 0,
-//    .sock = 0
-//};
-
-typedef struct file_stats {
-    int found;
-    int isdir;
-    long long bytes;
-    char *name;
-    char *extension;
-} file_stats;
-
-typedef struct
-{
-    pthread_t thread;
-    pthread_attr_t attr;
-    bhttp_server *server;
-    int sock;
-} thread_args;
-
-typedef enum {
-    BH_HANDLER_OK = 0,
-    BH_HANDLER_NZ,     // handler returned non-zero
-    BH_HANDLER_NO_MATCH    // could not find a matching handler
-} bhttp_handler_err_code;
-
-typedef enum {
-    BHTTP_HANDLER_SIMPLE = 0,
-    BHTTP_HANDLER_REGEX,
-} bhttp_handler_type;
-
-typedef struct bhttp_handler
-{
-    bhttp_handler_type type;
-    uint32_t methods;
-    bstr match;
-    int (*f_simple)(bhttp_request *req, bhttp_response *res);
-    int (*f_regex)(bhttp_request *req, bhttp_response *res, bvec *args);
-    /* for regex */
-    regex_t regex_buf;
-} bhttp_handler;
-
 /* http server init and begin functions */
 bhttp_server * bhttp_server_new(void);
 void bhttp_server_free(bhttp_server *server);
