@@ -736,9 +736,13 @@ fill_ip(struct sockaddr_storage *addr, char *dest, size_t size)
     if (addr->ss_family == AF_INET) {
         inaddr = &(((struct sockaddr_in*)addr)->sin_addr);
     }
-    else
+    else if (addr->ss_family == AF_INET6)
     {
         inaddr = &(((struct sockaddr_in6*)addr)->sin6_addr);
+    }
+    else
+    {
+        return 1;
     }
     const char * r = inet_ntop(addr->ss_family, inaddr, dest, size);
     if (r == NULL) return 1;
@@ -767,11 +771,17 @@ bhttp_server_run(bhttp_server *server)
 
         /* start new thread to handle connection */
         thread_args *args = malloc(sizeof(thread_args));
-        fill_ip(&their_addr, args->ipstr, sizeof args->ipstr);
         if (args != NULL)
         {
             args->server = server;
             args->sock = con;
+            if (fill_ip(&their_addr, args->ipstr, sizeof args->ipstr) != 0)
+            {
+                fprintf(stderr, "Could not get IP address of client\n");
+                free(args);
+                /* will stop the server */
+                return;
+            }
             pthread_attr_init(&args->attr);
             pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
             int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
