@@ -30,12 +30,14 @@ typedef enum {
 
 /* struct is populated during receive_data calls */
 typedef struct bhttp_request {
+    /* connection info */
+    const char *ip;
+
     /* first line */
     int method;
     bstr uri;
     bstr uri_path;
     bstr uri_query;
-//    char *version;
     /* headers */
     bvec headers;
     /* body */

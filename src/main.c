@@ -145,6 +145,21 @@ curl_handler(bhttp_request *req, bhttp_response *res, bvec *args)
 }
 
 int
+iptest_handler(bhttp_request *req, bhttp_response *res)
+{
+    bstr bs;
+    bstr_init(&bs);
+    bstr_append_printf(&bs, "<html><p>Hello, your ip address is: '%s'</p></html>",
+                       req->ip);
+
+    bhttp_res_set_body_text(res, bstr_cstring(&bs));
+    bstr_free_contents(&bs);
+    bhttp_res_add_header(res, "content-type", "text/html");
+    res->response_code = BHTTP_200_OK;
+    return 0;
+}
+
+int
 main(int argc, char **argv)
 {
     bhttp_server *server = bhttp_server_new();
@@ -164,6 +179,7 @@ main(int argc, char **argv)
 
     fflush(stdout);
 
+    bhttp_add_simple_handler(server, BHTTP_GET, "/ip", iptest_handler);
     bhttp_add_simple_handler(server, BHTTP_GET, "/abs_file", abs_file_handler);
     bhttp_add_simple_handler(server, BHTTP_GET, "/rel_file", rel_file_handler);
     bhttp_add_simple_handler(server, BHTTP_GET, "/helloworld", helloworld_handler);

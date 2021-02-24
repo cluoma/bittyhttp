@@ -40,6 +40,7 @@ typedef struct
     pthread_t thread;
     pthread_attr_t attr;
     bhttp_server *server;
+    char ipstr[INET6_ADDRSTRLEN];
     int sock;
 } thread_args;
 
@@ -673,6 +674,7 @@ do_connection(void * arg)
 {
     bhttp_server *server = ((thread_args *)arg)->server;
     int sock = ((thread_args *)arg)->sock;
+    const char *ipstr = ((thread_args *)arg)->ipstr;
 
     bhttp_request req;
     /* handle req while keep-alive requested */
@@ -680,6 +682,7 @@ do_connection(void * arg)
     {
         /* read a new req */
         bhttp_request_init(&req);
+        req.ip = ipstr;
         int r = receive_data(&req, sock);
         /* error handling req, break, don't bother being nice */
         if (r != BHTTP_REQ_OK)
@@ -725,6 +728,23 @@ do_connection(void * arg)
     return NULL;
 }
 
+int
+fill_ip(struct sockaddr_storage *addr, char *dest, size_t size)
+/* writes in ip from addr into dest string, size is size of dest buffer */
+{
+    void * inaddr;
+    if (addr->ss_family == AF_INET) {
+        inaddr = &(((struct sockaddr_in*)addr)->sin_addr);
+    }
+    else
+    {
+        inaddr = &(((struct sockaddr_in6*)addr)->sin6_addr);
+    }
+    const char * r = inet_ntop(addr->ss_family, inaddr, dest, size);
+    if (r == NULL) return 1;
+    return 0;
+}
+
 void
 bhttp_server_run(bhttp_server *server)
 /* start accepting connections */
@@ -734,7 +754,6 @@ bhttp_server_run(bhttp_server *server)
     /* client address information */
     struct sockaddr_storage their_addr;
     socklen_t sin_size;
-    char s[INET6_ADDRSTRLEN];
 
     /* wait for connections forever */
     while(1) {
@@ -748,6 +767,7 @@ bhttp_server_run(bhttp_server *server)
 
         /* start new thread to handle connection */
         thread_args *args = malloc(sizeof(thread_args));
+        fill_ip(&their_addr, args->ipstr, sizeof args->ipstr);
         if (args != NULL)
         {
             args->server = server;
