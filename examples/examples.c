@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "server.h"
+#include "../src/server.h"
 
 #include <curl/curl.h>
 

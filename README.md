@@ -2,6 +2,13 @@
 
 A threaded HTTP library and basic webserver for creating REST services in C.
 
+## Building
+
+```
+make lib
+make example
+```
+
 ## Basic Usage
 
 ```c
@@ -35,7 +42,7 @@ main(int argc, char **argv)
 
 ## Handlers
 
-In addition to simply serving files, `bittyhttp` also has several different handler types that the user can define. Check out `main.c` for even more examples.
+In addition to simply serving files, `bittyhttp` also has several different handler types that the user can define. Check out `examples/examples.c` for even more examples.
 
 Handlers are matched in the order they are added. If two handlers would match the same uri path, then the handler added first will get the callback.
 
