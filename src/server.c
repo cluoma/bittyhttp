@@ -413,6 +413,18 @@ send_buffer(int sock, const char *buf, size_t len)
 }
 
 static int
+send_headers(int sock, bhttp_response *res)
+{
+    int r;
+    bstr *header_text = bhttp_res_headers_to_string(res);
+    r = send_buffer(sock, bstr_cstring(header_text), (size_t)bstr_size(header_text));
+    if (r != 0)
+        return 1;
+    bstr_free(header_text);
+    return 0;
+}
+
+static int
 send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
 /* makes sure the send an entire file to sock */
 {
@@ -480,18 +492,6 @@ send_file(int sock, const char *file_path, size_t file_size, int use_sendfile)
         fclose(f);
         if (bad) return 1;
     }
-    return 0;
-}
-
-int
-send_headers(int sock, bhttp_response *res)
-{
-    int r;
-    bstr *header_text = bhttp_res_headers_to_string(res);
-    r = send_buffer(sock, bstr_cstring(header_text), (size_t)bstr_size(header_text));
-    if (r != 0)
-        return 1;
-    bstr_free(header_text);
     return 0;
 }
 
@@ -565,7 +565,7 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
         }
         else
         {
-            bstr_append_cstring_nolen(file_path, bstr_cstring(&res->body));
+            bstr_append_cstring(file_path, bstr_cstring(&res->body), bstr_size(&res->body));
         }
 
         file_stats fs = get_file_stats(bstr_cstring(file_path));
