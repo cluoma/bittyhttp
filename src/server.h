@@ -72,5 +72,11 @@ int bhttp_add_regex_handler(bhttp_server *server,
                             uint32_t methods,
                             const char *uri,
                             int (*cb)(bhttp_request *, bhttp_response *, bvec *));
+#ifdef LUA
+int bhttp_add_lua_handler(bhttp_server *server,
+                          uint32_t methods,
+                          const char *uri,
+                          const char * lua_script_path, const char * lua_cb_func_name);
+#endif
 
 #endif /* BITTYHTTP_SERVER_H */

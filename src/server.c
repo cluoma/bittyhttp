@@ -24,6 +24,9 @@
 #include "server.h"
 #include "respond.h"
 #include "http_parser.h"
+#ifdef LUA
+#include "lua_interface.h"
+#endif
 
 #define MAX_REGEX_MATCHES 10
 
@@ -53,11 +56,14 @@ typedef enum {
 typedef enum {
     BHTTP_HANDLER_SIMPLE = 0,
     BHTTP_HANDLER_REGEX,
+    BHTTP_HANDLER_LUA
 } bhttp_handler_type;
 
 union handler_callback {
     int (*f_simple)(bhttp_request *req, bhttp_response *res);
     int (*f_regex)(bhttp_request *req, bhttp_response *res, bvec *args);
+    int (*f_lua)(bhttp_request *req, bhttp_response *res,
+                 bstr *lua_file, bstr *lua_cb);
 };
 typedef struct bhttp_handler
 {
@@ -67,6 +73,9 @@ typedef struct bhttp_handler
     union handler_callback cb;
     /* for regex */
     regex_t regex_buf;
+    /* for lua */
+    bstr *lua_file;
+    bstr *lua_cb;
 } bhttp_handler;
 
 /* TODO: handle HEAD requests properly */
@@ -76,6 +85,8 @@ bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
 {
     bhttp_handler *handler = malloc(sizeof(bhttp_handler));
     if (handler == NULL) return NULL;
+    handler->lua_file = NULL;
+    handler->lua_cb = NULL;
 
     bstr_init(&handler->match);
     if (bstr_append_cstring_nolen(&handler->match, uri) != BS_SUCCESS)
@@ -89,7 +100,7 @@ bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
     switch(bhttp_handler_type)
     {
         case BHTTP_HANDLER_SIMPLE:
-            handler->cb.f_regex = cb;
+            handler->cb.f_simple = cb;
             break;
         case BHTTP_HANDLER_REGEX:
             handler->cb.f_regex = cb;
@@ -99,6 +110,9 @@ bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
                 free(handler);
                 return NULL;
             }
+            break;
+        case BHTTP_HANDLER_LUA:
+            handler->cb.f_lua = cb;
             break;
         default:
             bstr_free_contents(&handler->match);
@@ -113,6 +127,8 @@ bhttp_handler_free(bhttp_handler *h)
     bstr_free_contents(&h->match);
     if (h->type == BHTTP_HANDLER_REGEX)
         regfree(&h->regex_buf);
+    if (h->lua_file != NULL) bstr_free(h->lua_file);
+    if (h->lua_cb != NULL) bstr_free(h->lua_cb);
     free(h);
 }
 
@@ -137,6 +153,26 @@ bhttp_add_regex_handler(bhttp_server *server, uint32_t methods, const char *uri,
     bvec_add(&server->handlers, h);
     return 0;
 }
+
+#ifdef LUA
+int
+bhttp_add_lua_handler(bhttp_server *server, uint32_t methods, const char *uri,
+                      const char * lua_script_path, const char * lua_cb_func_name)
+{
+    bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_REGEX, uri, bhttp_lua_handler_callback);
+    if (h == NULL) return 1;
+    /* add name of lua script and lua callback */
+    if (bstr_append_cstring_nolen(h->lua_file, lua_script_path) != BS_SUCCESS ||
+        bstr_append_cstring_nolen(h->lua_cb, lua_cb_func_name) != BS_SUCCESS)
+    {
+        bhttp_handler_free(h);
+        return 1;
+    }
+    h->methods = methods;
+    bvec_add(&server->handlers, h);
+    return 0;
+}
+#endif
 
 bhttp_server *
 bhttp_server_new()
@@ -654,6 +690,13 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
                 {
                     r = handler->cb.f_regex(req, res, args);
                     bvec_free(args);
+                    return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+                }
+                break;
+            case BHTTP_HANDLER_LUA:
+                if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
+                {
+                    r = handler->cb.f_lua(req, res, handler->lua_file, handler->lua_cb);
                     return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
                 }
                 break;
