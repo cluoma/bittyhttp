@@ -139,6 +139,7 @@ bhttp_add_simple_handler(bhttp_server *server, uint32_t methods, const char *uri
     bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_SIMPLE, uri, cb);
     if (h == NULL) return 1;
     h->methods = methods;
+    /* add handler to server */
     bvec_add(&server->handlers, h);
     return 0;
 }
@@ -150,6 +151,7 @@ bhttp_add_regex_handler(bhttp_server *server, uint32_t methods, const char *uri,
     bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_REGEX, uri, cb);
     if (h == NULL) return 1;
     h->methods = methods;
+    /* add handler to server */
     bvec_add(&server->handlers, h);
     return 0;
 }
@@ -159,16 +161,17 @@ int
 bhttp_add_lua_handler(bhttp_server *server, uint32_t methods, const char *uri,
                       const char * lua_script_path, const char * lua_cb_func_name)
 {
-    bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_REGEX, uri, bhttp_lua_handler_callback);
+    bhttp_handler *h = bhttp_handler_new(BHTTP_HANDLER_LUA, uri, bhttp_lua_handler_callback);
     if (h == NULL) return 1;
+    h->methods = methods;
     /* add name of lua script and lua callback */
-    if (bstr_append_cstring_nolen(h->lua_file, lua_script_path) != BS_SUCCESS ||
-        bstr_append_cstring_nolen(h->lua_cb, lua_cb_func_name) != BS_SUCCESS)
+    if ( (h->lua_file = bstr_new_from_cstring(lua_script_path, strlen(lua_script_path))) == NULL ||
+         (h->lua_cb = bstr_new_from_cstring(lua_cb_func_name, strlen(lua_cb_func_name))) == NULL )
     {
         bhttp_handler_free(h);
         return 1;
     }
-    h->methods = methods;
+    /* add handler to server vector of handlers */
     bvec_add(&server->handlers, h);
     return 0;
 }
