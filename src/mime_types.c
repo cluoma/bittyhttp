@@ -6,6 +6,7 @@
  *  Copyright (c) 2021 Colin Luoma. All rights reserved.
  */
 
+#include <strings.h>
 #include "mime_types.h"
 
 #ifndef ARRAY_SIZE
