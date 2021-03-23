@@ -123,15 +123,6 @@ bhttp_res_headers_to_string(bhttp_response *res)
 }
 
 int
-default_404_handler(bhttp_request *req, bhttp_response *res)
-{
-    res->response_code = BHTTP_404;
-    bhttp_res_add_header(res, "content-type", "text/html");
-    bstr_append_cstring_nolen(&(res->body), "<html><p>bittyhttp - 404 Not Found</p></html>");
-    return 0;
-}
-
-int
 default_file_handler(bhttp_request *req, bhttp_response *res)
 {
     res->response_code = BHTTP_200_OK;
