@@ -539,6 +539,8 @@ send_500_response(int sock, bhttp_response *res)
 {
     res->response_code = BHTTP_500;
     /* send header */
+    bhttp_res_add_header(res, "server", "bittyhttp");
+    bhttp_res_add_header(res, "content-length", "0");
     send_headers(sock, res);
 }
 static void
@@ -546,6 +548,8 @@ send_501_response(int sock, bhttp_response *res)
 {
     res->response_code = BHTTP_501;
     /* send header */
+    bhttp_res_add_header(res, "server", "bittyhttp");
+    bhttp_res_add_header(res, "content-length", "0");
     send_headers(sock, res);
 }
 
@@ -576,6 +580,7 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
     if (res->bodytype == BHTTP_RES_BODY_EMPTY)
     {
         /* send full HTTP response header */
+        bhttp_res_add_header(res, "content-length", "0");
         send_headers(sock, res);
     }
     else if (res->bodytype == BHTTP_RES_BODY_TEXT)
