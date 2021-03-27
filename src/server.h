@@ -47,7 +47,6 @@ typedef struct bhttp_server
 
     /* not-so-basic config */
     int use_sendfile;
-    int daemon;
 
     /* main socket */
     int sock;

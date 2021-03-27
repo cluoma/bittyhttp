@@ -19,7 +19,6 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <signal.h>
 
 #include "server.h"
 #include "respond.h"
@@ -34,7 +33,6 @@ typedef struct file_stats {
     int found;
     int isdir;
     long long bytes;
-    char *name;
     char *extension;
 } file_stats;
 
@@ -188,7 +186,6 @@ bhttp_server_new()
     server->default_file = strdup("index.html");
     server->backlog = 10;
     server->use_sendfile = 1;
-    server->daemon = 0;
     server->sock = 0;
     bvec_init(&server->handlers, (void (*)(void *)) bhttp_handler_free);
 
@@ -310,9 +307,9 @@ bhttp_server_bind(bhttp_server *server)
     return 0;
 }
 
-// Needs a lot of work
 static file_stats
 get_file_stats(const char *file_path)
+/* returns basic information on the file at file_path */
 {
     file_stats fs = {0};
     struct stat s;
@@ -328,7 +325,6 @@ get_file_stats(const char *file_path)
         fs.isdir = 0;
         fs.bytes = s.st_size;
         fs.extension = strrchr(file_path, '.') + 1; // +1 because of '.'
-        fs.name = NULL;
     } else {  // Anything else we pretend we didn't find it
         fs.found = 0;
         fs.isdir = 0;
