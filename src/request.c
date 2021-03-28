@@ -91,18 +91,18 @@ bhttp_request_free(bhttp_request *request)
     bstr_free_contents(&request->body);
 }
 
-static void
-print_headers(bhttp_request *request)
-/* prints headers for debugging */
-{
-    bvec *headers = &request->headers;
-    for (int i = 0; i < bvec_count(headers); i++)
-    {
-        bhttp_header *h = (bhttp_header *)bvec_get(headers, i);
-        printf("%s: %s\n", bstr_cstring(&h->field), bstr_cstring(&h->value));
-    }
-    printf("\n");
-}
+//static void
+//print_headers(bhttp_request *request)
+///* prints headers for debugging */
+//{
+//    bvec *headers = &request->headers;
+//    for (int i = 0; i < bvec_count(headers); i++)
+//    {
+//        bhttp_header *h = (bhttp_header *)bvec_get(headers, i);
+//        printf("%s: %s\n", bstr_cstring(&h->field), bstr_cstring(&h->value));
+//    }
+//    printf("\n");
+//}
 
 static int
 url_decode(const char *source, bstr *dest, size_t length)

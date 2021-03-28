@@ -76,6 +76,10 @@ typedef struct bhttp_handler
     bstr *lua_cb;
 } bhttp_handler;
 
+#define C(k, v) [k] = (v),
+static const char * bhttp_res_codes_string[] = { BHTTP_RES_CODES };
+#undef C
+
 /* TODO: handle HEAD requests properly */
 
 static bhttp_handler *
@@ -451,11 +455,25 @@ static int
 send_headers(int sock, bhttp_response *res)
 {
     int r;
-    bstr *header_text = bhttp_res_headers_to_string(res);
+    bstr *header_text = bstr_new();
+    if (header_text == NULL) return 1;
+
+    const bvec *headers = bhttp_res_get_all_headers(res);
+    bstr_append_printf(header_text, "HTTP/1.1 %s\r\n", bhttp_res_codes_string[res->response_code]);
+    for (int i = 0; i < bvec_count(headers); i++)
+    {
+        bhttp_header *h = bvec_get(headers, i);
+        bstr_append_cstring(header_text, bstr_cstring(&h->field), bstr_size(&h->field));
+        bstr_append_cstring(header_text, bstr_const_str(": "));
+        bstr_append_cstring(header_text, bstr_cstring(&h->value), bstr_size(&h->value));
+        bstr_append_cstring(header_text, bstr_const_str("\r\n"));
+    }
+    bstr_append_cstring(header_text, bstr_const_str("\r\n"));
+
     r = send_buffer(sock, bstr_cstring(header_text), (size_t)bstr_size(header_text));
+    bstr_free(header_text);
     if (r != 0)
         return 1;
-    bstr_free(header_text);
     return 0;
 }
 
@@ -582,7 +600,7 @@ write_response(bhttp_server *server, bhttp_response *res, bhttp_request *req, in
     else if (res->bodytype == BHTTP_RES_BODY_TEXT)
     {
         /* check 'content-type', add default if missing */
-        bhttp_header *h = bhttp_res_get_header(res, "content-type");
+        const bhttp_header *h = bhttp_res_get_header(res, "content-type");
         if (h == NULL)
             bhttp_res_add_header(res, "content-type", "text/plain");
         /* add 'content-length' based on text in body */

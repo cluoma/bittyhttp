@@ -41,11 +41,10 @@ typedef struct bhttp_response {
 void bhttp_response_init(bhttp_response *res);
 void bhttp_response_free(bhttp_response *res);
 
-bstr * bhttp_res_headers_to_string(bhttp_response *res);
-
 /* interface for handlers */
 int bhttp_res_add_header(bhttp_response *res, const char *field, const char *value);
-bhttp_header *bhttp_res_get_header(bhttp_response *res, const char *field);
+const bhttp_header *bhttp_res_get_header(bhttp_response *res, const char *field);
+const bvec *bhttp_res_get_all_headers(bhttp_response *res);
 int bhttp_res_set_body_text(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_rel(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_abs(bhttp_response *res, const char *s);

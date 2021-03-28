@@ -8,16 +8,11 @@
 
 #include <string.h>
 #include <strings.h>
-#include <errno.h>
 
 #include "request.h"
 #include "respond.h"
 #include "header.h"
 #include "http_parser.h"
-
-#define C(k, v) [k] = (v),
-static const char * bhttp_res_codes_string[] = { BHTTP_RES_CODES };
-#undef C
 
 void
 bhttp_response_init(bhttp_response *res)
@@ -54,7 +49,7 @@ bhttp_res_add_header(bhttp_response *res, const char *field, const char *value)
     return 0;
 }
 
-bhttp_header *
+const bhttp_header *
 bhttp_res_get_header(bhttp_response *res, const char *field)
 {
     bvec *headers = &res->headers;
@@ -66,6 +61,12 @@ bhttp_res_get_header(bhttp_response *res, const char *field)
             return cur;
     }
     return NULL;
+}
+
+const bvec *
+bhttp_res_get_all_headers(bhttp_response *res)
+{
+    return &res->headers;
 }
 
 static int
@@ -101,25 +102,6 @@ int
 bhttp_res_set_body_file_abs(bhttp_response *res, const char *s)
 {
     return bhttp_res_set_body_file(res, s, 1);
-}
-
-bstr *
-bhttp_res_headers_to_string(bhttp_response *res)
-{
-    bstr *header_text = bstr_new();
-    if (header_text == NULL) return NULL;
-    bstr_append_printf(header_text, "HTTP/1.1 %s\r\n", bhttp_res_codes_string[res->response_code]);
-    for (int i = 0; i < bvec_count(&res->headers); i++)
-    {
-        bhttp_header *h = bvec_get(&res->headers, i);
-//        bstr_append_printf(header_text, "%s: %s\r\n", bstr_cstring(&h->field), bstr_cstring(&h->value));
-        bstr_append_cstring(header_text, bstr_cstring(&h->field), bstr_size(&h->field));
-        bstr_append_cstring(header_text, bstr_const_str(": "));
-        bstr_append_cstring(header_text, bstr_cstring(&h->value), bstr_size(&h->value));
-        bstr_append_cstring(header_text, bstr_const_str("\r\n"));
-    }
-    bstr_append_cstring(header_text, "\r\n", 2);
-    return header_text;
 }
 
 int
