@@ -21,8 +21,8 @@ void bvec_init(bvec* vec, void (*f)(void *));
 void bvec_free(bvec* vec);
 void bvec_free_contents(bvec *vec);
 
-int bvec_count(bvec* vec);
+int bvec_count(const bvec *vec);
 void bvec_add(bvec* vec, void* data);
-void* bvec_get(bvec* vec, int i);
+void* bvec_get(const bvec *vec, int i);
 
 #endif /* BITTYVEC_BITTYVEC_H */

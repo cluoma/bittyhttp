@@ -20,7 +20,7 @@ bvec_init(bvec* vec, void (*f)(void *d))
 }
 
 int
-bvec_count(bvec* vec)
+bvec_count(const bvec *vec)
 {
     return(vec->size);
 }
@@ -45,7 +45,7 @@ bvec_add(bvec* vec, void* data)
 }
 
 void*
-bvec_get(bvec* vec, int i)
+bvec_get(const bvec *vec, int i)
 {
     return(vec->data[i]);
 }
