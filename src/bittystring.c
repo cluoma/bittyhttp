@@ -29,7 +29,7 @@ next_power2(uint64_t x)
 {
     // if (x == 0) return 0;
 #ifdef __GNUC__
-    //    printf("unsigned long long: %llu bytes\n", (uint64_t)sizeof(unsigned long long)*8);
+//    printf("unsigned long long: %llu bytes\n", (uint64_t)sizeof(unsigned long long)*8);
 //    printf("x: %llu\n", x);
 //    printf("builtin of x: %d\n", __builtin_clzll(x));
 //    printf("bytes minus builtin: %llu\n", sizeof(unsigned long long)*8 - (uint64_t)__builtin_clzll(x));
@@ -84,8 +84,7 @@ bstr *
 bstr_new(void)
 {
     bstr *bs = BS_MALLOC(sizeof(bstr));
-    if (bs == NULL)
-        return NULL;
+    if (bs == NULL) return NULL;
 
     bstr_init(bs);
     return bs;
@@ -95,14 +94,22 @@ bstr *
 bstr_new_from_cstring(const char *cs, uint64_t len)
 {
     bstr *bs = bstr_new();
-    if (bs == NULL)
-        return NULL;
+    if (bs == NULL) return NULL;
 
     if (bstr_append_cstring(bs, cs, len) != BS_SUCCESS)
     {
         bstr_free(bs);
         return NULL;
     }
+    return bs;
+}
+
+bstr *
+bstr_new_move(char *cs, uint64_t len)
+{
+    bstr *bs = bstr_new();
+    if (bs == NULL) return NULL;
+    bstr_replace_move(bs, cs, len);
     return bs;
 }
 
@@ -336,6 +343,20 @@ bstr_prepend_printf(bstr *bs, const char * format, ...)
     va_end(ap);
 
     return BS_SUCCESS;
+}
+
+void
+bstr_replace_move(bstr *bs, char *cs, uint64_t len)
+{
+    bstr_free_contents(bs);
+    bs->ls.buf = cs;
+    bs->ls.capacity = len;
+    bs->ls.size = len;
+}
+void
+bstr_replace_move_nolen(bstr *bs, char *cs)
+{
+    bstr_replace_move(bs, cs, strlen(cs));
 }
 
 void

@@ -44,8 +44,11 @@ typedef union
 /*
  * Creators
  */
-bstr *bstr_new(void);
+bstr * bstr_new(void);
 bstr * bstr_new_from_cstring(const char *cs, uint64_t len);
+/* move gives bittystring ownership of the string
+ * shortstring is not utilized here */
+bstr * bstr_new_move(char *cs, uint64_t len);
 void bstr_init(bstr *bs);
 const char * bstr_error_string(bstr_ret_val r);
 /*
@@ -70,5 +73,9 @@ int bstr_prepend_cstring(bstr *bs, const char *cs, uint64_t len);
 int bstr_prepend_cstring_nolen(bstr *bs, const char *cs);
 int bstr_prepend_char(bstr *bs, const char c);
 int bstr_prepend_printf(bstr *bs, const char * format, ...);
+/* move gives bittystring ownership of the string
+ * shortstring is not utilized here */
+void bstr_replace_move(bstr *bs, char *cs, uint64_t len);
+void bstr_replace_move_nolen(bstr *bs, char *cs);
 
 #endif //BITTYSTRING_BITTYSTRING_H
