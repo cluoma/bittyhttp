@@ -73,7 +73,7 @@ typedef struct bhttp_handler
     regex_t regex_buf;
     /* for lua */
     bstr *lua_file;
-    bstr *lua_cb;
+    bstr *lua_cb_func;
 } bhttp_handler;
 
 #define C(k, v) [k] = (v),
@@ -88,7 +88,7 @@ bhttp_handler_new(int bhttp_handler_type, const char * uri, int (*cb)())
     bhttp_handler *handler = malloc(sizeof(bhttp_handler));
     if (handler == NULL) return NULL;
     handler->lua_file = NULL;
-    handler->lua_cb = NULL;
+    handler->lua_cb_func = NULL;
 
     bstr_init(&handler->match);
     if (bstr_append_cstring_nolen(&handler->match, uri) != BS_SUCCESS)
@@ -130,7 +130,7 @@ bhttp_handler_free(bhttp_handler *h)
     if (h->type == BHTTP_HANDLER_REGEX)
         regfree(&h->regex_buf);
     if (h->lua_file != NULL) bstr_free(h->lua_file);
-    if (h->lua_cb != NULL) bstr_free(h->lua_cb);
+    if (h->lua_cb_func != NULL) bstr_free(h->lua_cb_func);
     free(h);
 }
 
@@ -168,7 +168,7 @@ bhttp_add_lua_handler(bhttp_server *server, uint32_t methods, const char *uri,
     h->methods = methods;
     /* add name of lua script and lua callback */
     if ( (h->lua_file = bstr_new_from_cstring(lua_script_path, strlen(lua_script_path))) == NULL ||
-         (h->lua_cb = bstr_new_from_cstring(lua_cb_func_name, strlen(lua_cb_func_name))) == NULL )
+         (h->lua_cb_func = bstr_new_from_cstring(lua_cb_func_name, strlen(lua_cb_func_name))) == NULL )
     {
         bhttp_handler_free(h);
         return 1;
@@ -718,7 +718,7 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
             case BHTTP_HANDLER_LUA:
                 if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
                 {
-                    r = handler->cb.f_lua(req, res, handler->lua_file, handler->lua_cb);
+                    r = handler->cb.f_lua(req, res, handler->lua_file, handler->lua_cb_func);
                     return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
                 }
                 break;
