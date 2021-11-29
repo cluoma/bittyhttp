@@ -572,7 +572,7 @@ send_404_response(int sock, bhttp_response *res)
 {
     /* add our own headers and set 404 message */
     res->response_code = BHTTP_404;
-    bhttp_res_set_body_text(res, "<html><p>bittyhttp: 404 - NOT FOUND</p><html>");
+    bhttp_res_set_body_text(res, "<html><p>bittyhttp: 404 - NOT FOUND</p></html>");
     bhttp_res_add_header(res, "content-type", "text/html");
     bstr tmp; bstr_init(&tmp); bstr_append_printf(&tmp, "%d", bstr_size(&res->body));
     bhttp_res_add_header(res, "content-length", bstr_cstring(&tmp));
