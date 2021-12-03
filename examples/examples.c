@@ -8,46 +8,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include "../src/server.h"
+#include "../src/lua_interface.h"
 
 #include <curl/curl.h>
-
-static void
-parse_args(int argc, char **argv, bhttp_server *server)
-{
-    int c;
-    while ((c = getopt(argc, argv, "p:d:f")) != -1) {
-        switch (c) {
-            case 'p':
-                bhttp_server_set_port(server, optarg);
-                break;
-            case 'd':
-                bhttp_server_set_docroot(server, optarg);
-                break;
-            case 'f':
-                bhttp_server_set_dfile(server, optarg);
-                break;
-            case '?':
-                if (optopt == 'c' || optopt == 'd' || optopt == 'b')
-                {
-                    fprintf(stderr, "Error: -%c option missing\n", optopt);
-                    exit(1);
-                }
-                else
-                {
-                    fprintf(stderr, "Error: -%c unknown option\n", optopt);
-                    exit(1);
-                }
-                break;
-            default:
-                fprintf(stderr, "Error parsing options\nExiting...");
-                exit(1);
-        }
-    }
-
-}
 
 int
 abs_file_handler(bhttp_request *req, bhttp_response *res)
@@ -160,6 +125,15 @@ iptest_handler(bhttp_request *req, bhttp_response *res)
 }
 
 int
+lua_direct_handler(bhttp_request *req, bhttp_response *res)
+{
+    bhttp_lua_run_func(req, res,
+                       "examples/luatest.lua", "myCB",
+                       NULL);
+    return 0;
+}
+
+int
 main(int argc, char **argv)
 {
     bhttp_server *server = bhttp_server_new();
@@ -171,7 +145,7 @@ main(int argc, char **argv)
     bhttp_server_set_docroot(server, "./www");
     bhttp_server_set_dfile(server, "index.html");
 
-    printf("Starting bittyhttp with:\n port: %s\n backlog: %d\n docroot: %s\n logfile: %s\n default file: %s\n\n",
+    printf("Starting bittyhttp with:\n port: %s\n backlog: %d\n docroot: %s\n logfile: %s\n default file: %s\n",
            server->port, server->backlog, server->docroot, server->log_file, server->default_file);
 
     if (bhttp_server_bind(server) != 0)
@@ -186,7 +160,12 @@ main(int argc, char **argv)
     bhttp_add_regex_handler(server, BHTTP_GET, "^/api/([^/]*)$", helloworld_regex_handler);
     bhttp_add_regex_handler(server, BHTTP_GET | BHTTP_HEAD, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);
     bhttp_add_regex_handler(server, BHTTP_GET, "^/curl$", curl_handler);
-    printf("count: %d\n", bvec_count(&server->handlers));
+#ifdef LUA
+    bhttp_add_lua_handler(server, BHTTP_GET, "/lua", "examples/luatest.lua", "myCB");
+    bhttp_add_simple_handler(server, BHTTP_GET, "/lua2", lua_direct_handler);
+//    bhttp_add_lua_handler(server, BHTTP_GET, "/lua", "examples/luatwitch.lua", "myCB");
+#endif
+    printf(" handlers registered: %d\n", bvec_count(&server->handlers));
 
     bhttp_server_run(server);
 
