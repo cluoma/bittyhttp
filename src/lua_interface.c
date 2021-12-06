@@ -182,14 +182,9 @@ bhttp_lua_run_func(bhttp_request *req, bhttp_response *res,
     if (lua_pcall(L, 0, 1, 0) != LUA_OK)
     {
         fprintf(stderr, "Error running supplied lua callback\n");
+        fprintf(stderr, "LUA: %s\n", lua_tostring(L, -1));
         goto end;
     }
-//    lua_pushlightuserdata(L, data);
-//    if (lua_pcall(L, 1, 1, 0) != LUA_OK)
-//    {
-//        fprintf(stderr, "Error running supplied lua callback\n");
-//        goto end;
-//    }
 
 end:
     lua_close(L);
