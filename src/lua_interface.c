@@ -168,6 +168,7 @@ bhttp_lua_run_func(bhttp_request *req, bhttp_response *res,
     if (lua_pcall(L, 0, 0, 0) != LUA_OK)
     {
         fprintf(stderr, "Error in initial parse of lua file\n");
+        fprintf(stderr, "LUA: %s\n", lua_tostring(L, -1));
         goto end;
     }
 
