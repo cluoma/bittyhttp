@@ -10,21 +10,6 @@
 
 #include "lua_interface.h"
 
-#define BHLUA_CONFIGURE_FUNCTIONS \
-    BHLUAFUNC(bhlua_req_get_uri_path, req)      \
-    BHLUAFUNC(bhlua_req_get_uri_query, req)     \
-    BHLUAFUNC(bhlua_req_get_header, req)        \
-    BHLUAFUNC(bhlua_req_get_body, req)          \
-    BHLUAFUNC(bhlua_res_add_header, res)        \
-    BHLUAFUNC(bhlua_res_get_header, res)        \
-    BHLUAFUNC(bhlua_res_set_body_text, res)     \
-    BHLUAFUNC(bhlua_res_set_body_file_rel, res) \
-    BHLUAFUNC(bhlua_res_set_body_file_abs, res)
-#define BHLUAFUNC(k, v)                         \
-    lua_pushlightuserdata(L, (v));              \
-    lua_pushcclosure(L, &(k), 1);               \
-    lua_setglobal(L, #k);
-
 /* bhttp_request functions */
 static int bhlua_req_get_uri_path(lua_State *L)
 {
@@ -148,6 +133,35 @@ bhlua_res_set_body_file_abs(lua_State *L)
     return 0;
 }
 
+static const luaL_Reg bhlua_req_closures[] = {
+        {"bhlua_req_get_uri_path",  bhlua_req_get_uri_path  },
+        {"bhlua_req_get_uri_query", bhlua_req_get_uri_query },
+        {"bhlua_req_get_header",    bhlua_req_get_header    },
+        {"bhlua_req_get_body",      bhlua_req_get_body      },
+        {NULL, NULL}
+};
+
+static const luaL_Reg bhlua_res_closures[] = {
+        {"bhlua_res_add_header",        bhlua_res_add_header        },
+        {"bhlua_res_get_header",        bhlua_res_get_header        },
+        {"bhlua_res_set_body_text",     bhlua_res_set_body_text     },
+        {"bhlua_res_set_body_file_rel", bhlua_res_set_body_file_rel },
+        {"bhlua_res_set_body_file_abs", bhlua_res_set_body_file_abs },
+        {NULL, NULL}
+};
+
+void
+bhttp_lua_register_closures(lua_State *L, const luaL_Reg *funcs, void * data)
+{
+    while (funcs->name != NULL && funcs->func != NULL)
+    {
+        lua_pushlightuserdata(L, data);
+        lua_pushcclosure(L, funcs->func, 1);
+        lua_setglobal(L, funcs->name);
+        funcs++;
+    }
+}
+
 int
 bhttp_lua_run_func(bhttp_request *req, bhttp_response *res,
                    const char * lua_file, const char * lua_cb,
@@ -173,7 +187,9 @@ bhttp_lua_run_func(bhttp_request *req, bhttp_response *res,
     }
 
     /* add bittyhttp functions to lua global state */
-    BHLUA_CONFIGURE_FUNCTIONS;
+    bhttp_lua_register_closures(L, bhlua_req_closures, (void *)req);
+    bhttp_lua_register_closures(L, bhlua_res_closures, (void *)res);
+
 
     if (lua_getglobal(L, lua_cb) != LUA_TFUNCTION)
     {
