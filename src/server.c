@@ -818,6 +818,10 @@ void
 bhttp_server_run(bhttp_server *server)
 /* start accepting connections */
 {
+    pthread_attr_t detached_attr;
+    pthread_attr_init(&detached_attr);
+    pthread_attr_setdetachstate(&detached_attr, PTHREAD_CREATE_DETACHED);
+
     /* file descriptor for accepted connections */
     int con;
     /* client address information */
@@ -847,9 +851,8 @@ bhttp_server_run(bhttp_server *server)
                 /* will stop the server */
                 return;
             }
-            pthread_attr_init(&args->attr);
-            pthread_attr_setdetachstate(&args->attr, PTHREAD_CREATE_DETACHED);
-            int ret = pthread_create(&args->thread, &args->attr, do_connection, (void *)args);
+
+            int ret = pthread_create(&args->thread, &detached_attr, do_connection, (void *)args);
             if (ret != 0)
             {
                 fprintf(stderr, "Could not create thread to handle connection\n");
