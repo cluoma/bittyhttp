@@ -163,7 +163,6 @@ main(int argc, char **argv)
 #ifdef LUA
     bhttp_add_lua_handler(server, BHTTP_GET, "/lua", "examples/luatest.lua", "myCB");
     bhttp_add_simple_handler(server, BHTTP_GET, "/lua2", lua_direct_handler);
-//    bhttp_add_lua_handler(server, BHTTP_GET, "/lua", "examples/luatwitch.lua", "myCB");
 #endif
     printf(" handlers registered: %d\n", bvec_count(&server->handlers));
 
