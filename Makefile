@@ -3,7 +3,7 @@ proj := bittyhttp
 CC 			:= gcc
 CFLAGS 		:= -D_POSIX_C_SOURCE=200809L -std=c99 -O3
 CWARN 		:= -Wall
-DEFINES 	:= -DLUA
+DEFINES 	:=
 INCL		:= -I /usr/include/lua5.3/
 
 SRCS := $(wildcard src/*.c)

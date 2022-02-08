@@ -14,41 +14,6 @@
 
 #include <curl/curl.h>
 
-static void
-parse_args(int argc, char **argv, bhttp_server *server)
-{
-    int c;
-    while ((c = getopt(argc, argv, "p:d:f")) != -1) {
-        switch (c) {
-            case 'p':
-                bhttp_server_set_port(server, optarg);
-                break;
-            case 'd':
-                bhttp_server_set_docroot(server, optarg);
-                break;
-            case 'f':
-                bhttp_server_set_dfile(server, optarg);
-                break;
-            case '?':
-                if (optopt == 'c' || optopt == 'd' || optopt == 'b')
-                {
-                    fprintf(stderr, "Error: -%c option missing\n", optopt);
-                    exit(1);
-                }
-                else
-                {
-                    fprintf(stderr, "Error: -%c unknown option\n", optopt);
-                    exit(1);
-                }
-                break;
-            default:
-                fprintf(stderr, "Error parsing options\nExiting...");
-                exit(1);
-        }
-    }
-
-}
-
 int
 abs_file_handler(bhttp_request *req, bhttp_response *res)
 {

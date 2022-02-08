@@ -50,6 +50,10 @@ typedef struct bhttp_server
 
     /* main socket */
     int sock;
+
+    /* thread_id info and mutex */
+    pthread_t thread_id;
+    pthread_mutex_t lock;
 } bhttp_server;
 
 /* http server init and begin functions */
@@ -61,6 +65,9 @@ int bhttp_server_set_docroot(bhttp_server *server, const char *docroot);
 int bhttp_server_set_dfile(bhttp_server *server, const char *dfile);
 int bhttp_server_bind(bhttp_server *server);
 void bhttp_server_run(bhttp_server *server);
+
+int bhttp_server_start(bhttp_server *server, int separate);
+int bhttp_server_stop(bhttp_server *server);
 
 /* add handlers */
 int bhttp_add_simple_handler(bhttp_server *server,

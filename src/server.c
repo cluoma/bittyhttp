@@ -29,6 +29,9 @@
 
 #define MAX_REGEX_MATCHES 10
 
+#define LOCK(X)   pthread_mutex_lock(&((X)->lock))
+#define UNLOCK(X) pthread_mutex_unlock(&((X)->lock))
+
 typedef struct file_stats {
     int found;
     int isdir;
@@ -199,6 +202,13 @@ bhttp_server_new()
         bhttp_server_free(server);
         return NULL;
     }
+
+    if (pthread_mutex_init(&server->lock, NULL) != 0)
+    {
+        bhttp_server_free(server);
+        return NULL;
+    }
+
     return server;
 }
 
@@ -259,6 +269,7 @@ bhttp_server_set_docroot(bhttp_server *server, const char *docroot)
 
 int
 bhttp_server_set_dfile(bhttp_server *server, const char *dfile)
+/* sets the default file to look for in a directory */
 {
     return arg_replace(&server->default_file, dfile);
 }
@@ -868,7 +879,54 @@ bhttp_server_run(bhttp_server *server)
             /* will stop the server */
             return;
         }
-//        pthread_join(args->thread, NULL);
-//        return;
     }
+}
+
+int
+bhttp_server_start(bhttp_server *server, int separate)
+{
+    if (!separate)
+    /* start bittyhttp and never return unless there's an error */
+    {
+        bhttp_server_run(server);
+        return 1;
+    }
+
+    /* start bittyhttp on a separate thread */
+    if (LOCK(server))
+    {
+        fprintf(stderr, "could not get mutex lock on server\n");
+        return 1;
+    }
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    int ret = pthread_create(&server->thread_id, &attr, (void *(*)(void *)) bhttp_server_run, server);
+    pthread_attr_destroy(&attr);
+    if (ret)
+    {
+        fprintf(stderr, "unable to start bittyhttp server on a separate thread\n");
+        return 1;
+    }
+
+    UNLOCK(server);
+    return 0;
+}
+
+int
+bhttp_server_stop(bhttp_server *server)
+{
+    if (LOCK(server))
+    {
+        fprintf(stderr, "could not get mutex lock on server\n");
+        return 1;
+    }
+    if (pthread_cancel(server->thread_id))
+    {
+        fprintf(stderr, "error cancelling bittyhttp server thread\n");
+        return 1;
+    }
+    pthread_join(server->thread_id, NULL);
+    UNLOCK(server);
+    return 0;
 }
