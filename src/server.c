@@ -29,8 +29,9 @@
 
 #define MAX_REGEX_MATCHES 10
 
-#define LOCK(X)   pthread_mutex_lock(&((X)->lock))
-#define UNLOCK(X) pthread_mutex_unlock(&((X)->lock))
+#define WRITE_LOCK(X)   pthread_rwlock_wrlock(&((X)->rwlock))
+#define READ_LOCK(X)    pthread_rwlock_rdlock(&((X)->rwlock))
+#define UNLOCK(X)       pthread_rwlock_unlock(&((X)->rwlock))
 
 typedef struct file_stats {
     int found;
@@ -203,7 +204,7 @@ bhttp_server_new()
         return NULL;
     }
 
-    if (pthread_mutex_init(&server->lock, NULL) != 0)
+    if (pthread_rwlock_init(&server->rwlock, NULL) != 0)
     {
         bhttp_server_free(server);
         return NULL;
@@ -221,6 +222,7 @@ bhttp_server_free(bhttp_server *server)
     if (server->log_file != NULL) free(server->log_file);
     if (server->default_file != NULL) free(server->default_file);
     bvec_free_contents(&server->handlers);
+    pthread_rwlock_destroy(&server->rwlock);
     free(server);
 }
 
@@ -893,9 +895,9 @@ bhttp_server_start(bhttp_server *server, int separate)
     }
 
     /* start bittyhttp on a separate thread */
-    if (LOCK(server))
+    if (WRITE_LOCK(server))
     {
-        fprintf(stderr, "could not get mutex lock on server\n");
+        fprintf(stderr, "could not get mutex rwlock on server\n");
         return 1;
     }
 
@@ -916,9 +918,9 @@ bhttp_server_start(bhttp_server *server, int separate)
 int
 bhttp_server_stop(bhttp_server *server)
 {
-    if (LOCK(server))
+    if (WRITE_LOCK(server))
     {
-        fprintf(stderr, "could not get mutex lock on server\n");
+        fprintf(stderr, "could not get mutex rwlock on server\n");
         return 1;
     }
     if (pthread_cancel(server->thread_id))
