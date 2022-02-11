@@ -1,6 +1,6 @@
 # bittyhttp
 
-A threaded HTTP library and basic webserver for creating REST services in C.
+A Linux, threaded HTTP library and basic webserver for creating REST services in C.
 
 ## Building
 
