@@ -54,6 +54,7 @@ typedef struct bhttp_server
     /* thread_id info and mutex */
     pthread_t thread_id;
     pthread_rwlock_t rwlock;
+    int is_running;
 } bhttp_server;
 
 /* http server init and begin functions */

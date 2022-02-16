@@ -51,8 +51,8 @@ typedef struct
 
 typedef enum {
     BH_HANDLER_OK = 0,
-    BH_HANDLER_NZ,     // handler returned non-zero
-    BH_HANDLER_NO_MATCH    // could not find a matching handler
+    BH_HANDLER_NZ,          // handler returned non-zero
+    BH_HANDLER_NO_MATCH     // could not find a matching handler
 } bhttp_handler_err_code;
 
 typedef enum {
@@ -146,7 +146,9 @@ bhttp_add_simple_handler(bhttp_server *server, uint32_t methods, const char *uri
     if (h == NULL) return 1;
     h->methods = methods;
     /* add handler to server */
+    WRITE_LOCK(server);
     bvec_add(&server->handlers, h);
+    UNLOCK(server);
     return 0;
 }
 
@@ -158,7 +160,9 @@ bhttp_add_regex_handler(bhttp_server *server, uint32_t methods, const char *uri,
     if (h == NULL) return 1;
     h->methods = methods;
     /* add handler to server */
+    WRITE_LOCK(server);
     bvec_add(&server->handlers, h);
+    UNLOCK(server);
     return 0;
 }
 
@@ -178,7 +182,9 @@ bhttp_add_lua_handler(bhttp_server *server, uint32_t methods, const char *uri,
         return 1;
     }
     /* add handler to server vector of handlers */
+    WRITE_LOCK(server);
     bvec_add(&server->handlers, h);
+    UNLOCK(server);
     return 0;
 }
 #endif
@@ -702,6 +708,7 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
     int r;
     /* TODO: should actually try and return 405 for matched paths */
     /* match handlers here */
+    READ_LOCK(server);
     for (int i = 0; i < bvec_count(&server->handlers); i++)
     {
         bhttp_handler *handler = bvec_get(&server->handlers, i);
@@ -715,8 +722,9 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
             case BHTTP_HANDLER_SIMPLE:
                 if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
                 {
-                    r = handler->cb.f_simple(req, res);
-                    return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+                    r = handler->cb.f_simple(req, res) ?
+                            BH_HANDLER_NZ : BH_HANDLER_OK;
+                    goto exit;
                 }
                 break;
             case BHTTP_HANDLER_REGEX:
@@ -725,14 +733,16 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
                 {
                     r = handler->cb.f_regex(req, res, args);
                     bvec_free(args);
-                    return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+                    r = r ? BH_HANDLER_NZ : BH_HANDLER_OK;
+                    goto exit;
                 }
                 break;
             case BHTTP_HANDLER_LUA:
                 if (strcmp(bstr_cstring(&handler->match), bstr_cstring(&req->uri_path)) == 0)
                 {
-                    r = handler->cb.f_lua(req, res, handler->lua_file, handler->lua_cb_func);
-                    return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+                    r = handler->cb.f_lua(req, res, handler->lua_file, handler->lua_cb_func) ?
+                            BH_HANDLER_NZ : BH_HANDLER_OK;
+                    goto exit;
                 }
                 break;
         }
@@ -740,11 +750,15 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
     /* no handler found, try serving a file */
     if (req->method & BHTTP_GET || req->method & BHTTP_HEAD)
     {
-        r = default_file_handler(req, res);
-        return (r ? BH_HANDLER_NZ : BH_HANDLER_OK);
+        r = default_file_handler(req, res) ?
+                BH_HANDLER_NZ : BH_HANDLER_OK;
+        goto exit;
     }
     else
-        return BH_HANDLER_NO_MATCH;
+        r = BH_HANDLER_NO_MATCH;
+exit:
+    UNLOCK(server);
+    return r;
 }
 
 static void *
