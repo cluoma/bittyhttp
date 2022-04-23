@@ -139,9 +139,6 @@ main(int argc, char **argv)
     printf("Starting bittyhttp with:\n port: %s\n backlog: %d\n docroot: %s\n logfile: %s\n default file: %s\n\n",
            server->port, server->backlog, server->docroot, server->log_file, server->default_file);
 
-    if (bhttp_server_bind(server) != 0)
-      return 1;
-
     fflush(stdout);
 
     bhttp_add_simple_handler(server, BHTTP_GET, "/ip", iptest_handler);
