@@ -153,7 +153,7 @@ main(int argc, char **argv)
     bhttp_add_regex_handler(server, BHTTP_GET, "^/curl$", curl_handler);
     printf("count: %d\n", bvec_count(&server->handlers));
 
-    bhttp_server_run(server);
+    bhttp_server_start(server, 0);
 
     return 0;
 }

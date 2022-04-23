@@ -26,10 +26,14 @@ C(4,  PUT)          \
 C(5,  CONNECT)      \
 C(6,  OPTIONS)      \
 C(7,  TRACE)
-
 #define C(num, name) BHTTP_##name = 1 << (num),
 typedef enum { BHTTP_UNSUPPORTED_METHOD = 0, BHTTP_METHOD_MAP(C) } bhttp_method;
 #undef C
+
+typedef enum {
+    BHTTP_SERVER_STATE_OFF = 0,
+    BHTTP_SERVER_STATE_RUNNING
+} bhttp_server_state;
 
 /* bhttp_server structures stores information about the current server */
 typedef struct bhttp_server
@@ -54,7 +58,7 @@ typedef struct bhttp_server
     /* thread_id info and mutex */
     pthread_t thread_id;
     pthread_rwlock_t rwlock;
-    int is_running;
+    bhttp_server_state state;
 } bhttp_server;
 
 /* http server init and begin functions */
@@ -64,10 +68,8 @@ int bhttp_server_set_ip(bhttp_server *server, const char *ip);
 int bhttp_server_set_port(bhttp_server *server, const char *port);
 int bhttp_server_set_docroot(bhttp_server *server, const char *docroot);
 int bhttp_server_set_dfile(bhttp_server *server, const char *dfile);
-int bhttp_server_bind(bhttp_server *server);
-void bhttp_server_run(bhttp_server *server);
 
-int bhttp_server_start(bhttp_server *server, int separate);
+int bhttp_server_start(bhttp_server *server, int own_thread);
 int bhttp_server_stop(bhttp_server *server);
 
 /* add handlers */

@@ -70,7 +70,9 @@ union handler_callback {
 typedef struct bhttp_handler
 {
     bhttp_handler_type type;
+    /* accepted http methods */
     uint32_t methods;
+    /* string used to match requests */
     bstr match;
     union handler_callback cb;
     /* for regex */
@@ -215,6 +217,7 @@ bhttp_server_new()
         bhttp_server_free(server);
         return NULL;
     }
+    server->state = BHTTP_SERVER_STATE_OFF;
 
     return server;
 }
@@ -235,17 +238,36 @@ bhttp_server_free(bhttp_server *server)
 int
 bhttp_server_set_ip(bhttp_server *server, const char *ip)
 {
+    /* return value, default 0=success, 1=failure */
+    int r = 0;
+
+    READ_LOCK(server);
+    if (server->state != BHTTP_SERVER_STATE_OFF)
+    {
+        fprintf(stderr, "bhttp: Cannot set IP address in current state\n");
+        r = 1;
+        goto exit;
+    }
+    UNLOCK(server);
+
+    WRITE_LOCK(server);
     if (server->ip != NULL)
         free(server->ip);
     if (ip == NULL)
     {
         server->ip = NULL;
-        return 0;
+        goto exit;
     }
     server->ip = strdup(ip);
     if (server->ip == NULL)
-        return 1;
-    return 0;
+    {
+        r = 1;
+        goto exit;
+    }
+
+exit:
+    UNLOCK(server);
+    return r;
 }
 
 static int
@@ -266,20 +288,69 @@ arg_replace(char **dest, const char *src)
 int
 bhttp_server_set_port(bhttp_server *server, const char *port)
 {
-    return arg_replace(&server->port, port);
+    /* return value, default 0=success, 1=failure */
+    int r = 0;
+
+    READ_LOCK(server);
+    if (server->state != BHTTP_SERVER_STATE_OFF)
+    {
+        fprintf(stderr, "bhttp: Cannot set port in current state\n");
+        r = 1;
+        goto exit;
+    }
+    UNLOCK(server);
+
+    WRITE_LOCK(server);
+    r = arg_replace(&server->port, port);
+
+exit:
+    UNLOCK(server);
+    return r;
 }
 
 int
 bhttp_server_set_docroot(bhttp_server *server, const char *docroot)
 {
-    return arg_replace(&server->docroot, docroot);
+    /* return value, default 0=success, 1=failure */
+    int r = 0;
+
+    READ_LOCK(server);
+    if (server->state != BHTTP_SERVER_STATE_OFF)
+    {
+        fprintf(stderr, "bhttp: Cannot set docroot in current state\n");
+        r = 1;
+        goto exit;
+    }
+    UNLOCK(server);
+
+    WRITE_LOCK(server);
+    r = arg_replace(&server->docroot, docroot);
+exit:
+    UNLOCK(server);
+    return r;
 }
 
 int
 bhttp_server_set_dfile(bhttp_server *server, const char *dfile)
 /* sets the default file to look for in a directory */
 {
-    return arg_replace(&server->default_file, dfile);
+    /* return value, default 0=success, 1=failure */
+    int r = 0;
+
+    READ_LOCK(server);
+    if (server->state != BHTTP_SERVER_STATE_OFF)
+    {
+        fprintf(stderr, "bhttp: Cannot set default file in current state\n");
+        r = 1;
+        goto exit;
+    }
+    UNLOCK(server);
+
+    WRITE_LOCK(server);
+    r = arg_replace(&server->default_file, dfile);
+exit:
+    UNLOCK(server);
+    return r;
 }
 
 int
@@ -716,7 +787,7 @@ match_handler(bhttp_server *server, bhttp_request *req, bhttp_response *res)
         //printf("handler: %s\n", bstr_cstring(&handler->match));
         //printf("URI: %s\n", bstr_cstring(&req->uri_path));
 
-        bvec *args;
+        bvec *args; /* in case we need to store matches from a regex handler */
         switch(handler->type)
         {
             case BHTTP_HANDLER_SIMPLE:
@@ -899,32 +970,38 @@ bhttp_server_run(bhttp_server *server)
 }
 
 int
-bhttp_server_start(bhttp_server *server, int separate)
+bhttp_server_start(bhttp_server *server, int own_thread)
 {
-    if (!separate)
+    if (bhttp_server_bind(server))
+    /* first try to bind to ip and port */
+    {
+        fprintf(stderr, "Unable to bind ip: %s on port: %s\n", server->ip, server->port);
+        return 1;
+    }
+
+    if (!own_thread)
     /* start bittyhttp and never return unless there's an error */
     {
         bhttp_server_run(server);
         return 1;
     }
 
-    /* start bittyhttp on a separate thread */
+    /* start bittyhttp on its own thread */
     if (WRITE_LOCK(server))
     {
         fprintf(stderr, "could not get mutex rwlock on server\n");
         return 1;
     }
-
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     int ret = pthread_create(&server->thread_id, &attr, (void *(*)(void *)) bhttp_server_run, server);
     pthread_attr_destroy(&attr);
     if (ret)
     {
-        fprintf(stderr, "unable to start bittyhttp server on a separate thread\n");
+        fprintf(stderr, "unable to start bittyhttp server on a own_thread thread\n");
         return 1;
     }
-
+    server->state = BHTTP_SERVER_STATE_RUNNING;
     UNLOCK(server);
     return 0;
 }
@@ -943,6 +1020,7 @@ bhttp_server_stop(bhttp_server *server)
         return 1;
     }
     pthread_join(server->thread_id, NULL);
+    server->state = BHTTP_SERVER_STATE_OFF;
     UNLOCK(server);
     return 0;
 }
