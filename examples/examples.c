@@ -133,7 +133,7 @@ main(int argc, char **argv)
 
     //parse_args(argc, argv, server);
     bhttp_server_set_port(server, "8989");
-    bhttp_server_set_docroot(server, "./www");
+    bhttp_server_set_docroot(server, "./examples/www");
     bhttp_server_set_dfile(server, "index.html");
 
     printf("Starting bittyhttp with:\n port: %s\n backlog: %d\n docroot: %s\n logfile: %s\n default file: %s\n\n",
