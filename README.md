@@ -27,18 +27,24 @@ main(int argc, char **argv)
     bhttp_server_set_docroot(server, "./www");
     bhttp_server_set_dfile(server, "index.html");
     
-    if (bhttp_server_bind(server) != 0) return 1;
-    
     bhttp_add_simple_handler(server,
                              BHTTP_GET | BHTTP_POST,  // declare supported http methods
                              "/helloworld",           // pattern to match uri path
                              helloworld_handler);     // callback function pointer
     
-    bhttp_server_run(server);
+    bhttp_server_start(server, 0);
     
     return 0;
 }
 ```
+
+## Starting Server
+
+The second argument to `bhttp_server_start` decides how the server is started. Setting `own_thread` to 1 will start `bittyhttp` in a separate thread and return immediately. It is then up to the caller to later call `bhttp_server_stop` and `bhttp_server_free`.
+
+While running in a separate thread, it is possible for the caller to add new handlers.
+
+Alternatively, setting `own_thread` to 0 with take over the calling thread and will never return unless `bittyhttp` encounters an error.
 
 ## Handlers
 
@@ -130,6 +136,10 @@ rel_file_handler(bhttp_request *req, bhttp_response *res)
 
 bhttp_add_simple_handler(&server, BHTTP_GET, "/rel_file", rel_file_handler);
 ```
+
+## Threads
+
+`bittyhttp` uses a new thread for each request. It is recommended that only threadsafe functions be used inside callback handlers. Additionally, appropriate structures should be used when callback handlers access the same data: mutexes, pools, etc.
 
 ## Sites Using bittyhttp
 
