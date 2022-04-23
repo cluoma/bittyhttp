@@ -25,7 +25,7 @@ abs_file_handler(bhttp_request *req, bhttp_response *res)
 int
 rel_file_handler(bhttp_request *req, bhttp_response *res)
 {
-    bhttp_res_set_body_file_rel(res, "/hugo/404.html");
+    bhttp_res_set_body_file_rel(res, "/rel_file_test.html");
     res->response_code = BHTTP_200_OK;
     return 0;
 }
