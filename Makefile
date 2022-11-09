@@ -18,7 +18,7 @@ all: example
 
 lib: libbhttp.a
 
-debug: CFLAGS += -g -O1
+debug: CFLAGS += -g -O0
 debug: example
 
 luasqliteexample: examples/lua_sqlite_example.o libbhttp.a
