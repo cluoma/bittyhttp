@@ -75,6 +75,7 @@ bhttp_request_init(bhttp_request *request)
     bstr_init(&request->uri_path);
     bstr_init(&request->uri_query);
     bvec_init(&request->headers, (void (*)(void *)) &bhttp_header_free);
+    request->cookie = bhttp_cookie_new();
     bstr_init(&request->body);
     request->done = 0;
     init_parser(request);
@@ -88,6 +89,7 @@ bhttp_request_free(bhttp_request *request)
     bstr_free_contents(&request->uri_path);
     bstr_free_contents(&request->uri_query);
     bvec_free_contents(&request->headers);
+    bhttp_cookie_free(request->cookie);
     bstr_free_contents(&request->body);
 }
 
@@ -240,6 +242,25 @@ bhttp_req_get_header(bhttp_request *req, const char *field)
         bstr *hf = &cur->field;
         if (strcasecmp(field, bstr_cstring(hf)) == 0)
             return cur;
+    }
+    return NULL;
+}
+
+bhttp_cookie *
+bhttp_req_get_cookie(bhttp_request *req)
+/* returns the cookie header, parsed into a bhttp_cookie struct */
+{
+    bvec *headers = &req->headers;
+    for (int i = 0; i < bvec_count(headers); i++)
+    {
+        bhttp_header *cur = (bhttp_header *)bvec_get(headers, i);
+        bstr *hf = &cur->field;
+        if (strcasecmp("cookie", bstr_cstring(hf)) == 0)
+        {
+            printf("Cooke: %s\n", bstr_cstring(&cur->value));
+            bhttp_cookie_parse(req->cookie, bstr_cstring(&cur->value));
+            return req->cookie;
+        }
     }
     return NULL;
 }

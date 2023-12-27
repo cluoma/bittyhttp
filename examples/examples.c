@@ -125,6 +125,29 @@ iptest_handler(bhttp_request *req, bhttp_response *res)
 }
 
 int
+hello_cookie_handler(bhttp_request *req, bhttp_response *res)
+{
+    bhttp_res_add_header(res, "content-type", "text/html");
+    bhttp_res_add_header(res, "content-t?ype", "text/html");
+
+    bhttp_cookie * cookie = bhttp_req_get_cookie(req);
+    if (cookie != NULL)
+        bhttp_cookie_print(cookie);
+
+    bstr bs;
+    bstr_init(&bs);
+    bstr_append_printf(&bs, "<html><p>Hello, world! from URL: %s</p><p>%s</p><p>%s</p></html>",
+                       bstr_cstring(&req->uri),
+                       bstr_cstring(&req->uri_path),
+                       bstr_cstring(&req->uri_query));
+
+    bhttp_res_set_body_text(res, bstr_cstring(&bs));
+    bstr_free_contents(&bs);
+    res->response_code = BHTTP_200_OK;
+    return 0;
+}
+
+int
 main(int argc, char **argv)
 {
     bhttp_server *server = bhttp_server_new();
@@ -148,6 +171,7 @@ main(int argc, char **argv)
     bhttp_add_regex_handler(server, BHTTP_GET, "^/api/([^/]*)$", helloworld_regex_handler);
     bhttp_add_regex_handler(server, BHTTP_GET | BHTTP_HEAD, "^/api/([^/]+)/([^/]+)$", helloworld_regex_handler);
     bhttp_add_regex_handler(server, BHTTP_GET, "^/curl$", curl_handler);
+    bhttp_add_simple_handler(server, BHTTP_GET, "/hellocookie", hello_cookie_handler);
     printf("count: %d\n", bvec_count(&server->handlers));
 
     bhttp_server_start(server, 0);

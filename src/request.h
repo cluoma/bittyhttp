@@ -14,6 +14,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "header.h"
+#include "cookie.h"
 #include "http_parser.h"
 #include "bittystring.h"
 #include "bittyvec.h"
@@ -40,6 +41,7 @@ typedef struct bhttp_request {
     bstr uri_query;
     /* headers */
     bvec headers;
+    bhttp_cookie * cookie;
     /* body */
     bstr body;
 
@@ -62,5 +64,7 @@ int receive_data(bhttp_request *request, int sock);
 
 /* returns a pointer to the value of header_key */
 bhttp_header *bhttp_req_get_header(bhttp_request *req, const char *field);
+/* returns a pointer to a parsed cookie header */
+bhttp_cookie *bhttp_req_get_cookie(bhttp_request *req);
 
 #endif /* BITTYHTTP_REQUEST_H */
