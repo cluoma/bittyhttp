@@ -18,6 +18,7 @@ void
 bhttp_response_init(bhttp_response *res)
 {
     bvec_init(&res->headers, (void (*)(void *)) bhttp_header_free);
+    res->cookie = bhttp_cookie_new();
     bstr_init(&res->body);
     res->response_code = BHTTP_200_OK;
     res->bodytype = BHTTP_RES_BODY_EMPTY;
@@ -27,10 +28,15 @@ void
 bhttp_response_free(bhttp_response *res)
 {
     bvec_free_contents(&res->headers);
+    bhttp_cookie_free(res->cookie);
     bstr_free_contents(&res->body);
     res->bodytype = BHTTP_RES_BODY_EMPTY;
 }
 
+/* **********************************
+ * Headers
+ * **********************************
+ */
 int
 bhttp_res_add_header(bhttp_response *res, const char *field, const char *value)
 {
@@ -69,6 +75,26 @@ bhttp_res_get_all_headers(bhttp_response *res)
     return &res->headers;
 }
 
+/* **********************************
+ * Cookies
+ * **********************************
+ */
+int
+bhttp_res_add_cookie(bhttp_response *res, const char *field, const char *value)
+{
+    return bhttp_cookie_add_entry(res->cookie, field, value);
+}
+
+const bvec *
+bhttp_res_get_cookies(bhttp_response *res)
+{
+    return bhttp_cookie_get_entries(res->cookie);
+}
+
+/* **********************************
+ * Headers
+ * **********************************
+ */
 static int
 bhttp_res_set_body(bhttp_response *res, const char *s, uint64_t len)
 {

@@ -6,11 +6,6 @@
 #include "bittystring.h"
 #include "bittyvec.h"
 
-typedef struct bhttp_cookie_entry {
-    bstr field;
-    bstr value;
-} bhttp_cookie_entry;
-
 void
 bhttp_cookie_entry_free(bhttp_cookie_entry * ce)
 {
@@ -115,7 +110,34 @@ bhttp_cookie_parse(bhttp_cookie * c, const char * s)
     return 1;
 }
 
-void bhttp_cookie_print(bhttp_cookie * c)
+int
+bhttp_cookie_add_entry(bhttp_cookie * c, const char * field, const char * value)
+{
+    bhttp_cookie_entry * ce = malloc(sizeof(bhttp_cookie_entry));
+    if (ce == NULL)
+        return 1;
+    bstr_init(&ce->field);
+    bstr_init(&ce->value);
+
+    if (bstr_append_cstring_nolen(&ce->field, field) != BS_SUCCESS ||
+        bstr_append_cstring_nolen(&ce->value, value) != BS_SUCCESS)
+    {
+        bhttp_cookie_entry_free(ce);
+        return 1;
+    }
+
+    bvec_add(c->entries, ce);
+    return 0;
+}
+
+const bvec *
+bhttp_cookie_get_entries(bhttp_cookie * c)
+{
+    return c->entries;
+}
+
+void
+bhttp_cookie_print(bhttp_cookie * c)
 {
     bvec * c_entries = c->entries;
     printf("cookie count: %d\n", bvec_count(c_entries));

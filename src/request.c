@@ -231,6 +231,9 @@ receive_data(bhttp_request *request, int sock)
     return BHTTP_REQ_OK;
 }
 
+/*
+ * Headers
+ */
 bhttp_header *
 bhttp_req_get_header(bhttp_request *req, const char *field)
 /* returns the bhttp_header request header with the given field */
@@ -246,6 +249,9 @@ bhttp_req_get_header(bhttp_request *req, const char *field)
     return NULL;
 }
 
+/*
+ * Cookies
+ */
 bhttp_cookie *
 bhttp_req_get_cookie(bhttp_request *req)
 /* returns the cookie header, parsed into a bhttp_cookie struct */

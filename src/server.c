@@ -543,6 +543,7 @@ send_buffer(int sock, const char *buf, size_t len)
 
 static int
 send_headers(int sock, bhttp_response *res)
+/* includes the final /r/n after the header block */
 {
     int r;
     bstr *header_text = bstr_new();
@@ -558,6 +559,20 @@ send_headers(int sock, bhttp_response *res)
         bstr_append_cstring(header_text, bstr_cstring(&h->value), bstr_size(&h->value));
         bstr_append_cstring(header_text, bstr_const_str("\r\n"));
     }
+
+    /* add cookies */
+    const bvec *cookies = bhttp_res_get_cookies(res);
+    for (int i = 0; i < bvec_count(cookies); i++)
+    {
+        bstr_append_cstring(header_text, bstr_const_str("set-cookie: "));
+        bhttp_cookie_entry *ce = bvec_get(cookies, i);
+        bstr_append_cstring(header_text, bstr_cstring(&ce->field), bstr_size(&ce->field));
+        bstr_append_cstring(header_text, bstr_const_str("="));
+        bstr_append_cstring(header_text, bstr_cstring(&ce->value), bstr_size(&ce->value));
+        /* TODO: add support here for max-age, etc. */
+        bstr_append_cstring(header_text, bstr_const_str("\r\n"));
+    }
+
     bstr_append_cstring(header_text, bstr_const_str("\r\n"));
 
     r = send_buffer(sock, bstr_cstring(header_text), (size_t)bstr_size(header_text));

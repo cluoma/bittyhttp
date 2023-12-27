@@ -129,6 +129,7 @@ hello_cookie_handler(bhttp_request *req, bhttp_response *res)
 {
     bhttp_res_add_header(res, "content-type", "text/html");
     bhttp_res_add_header(res, "content-t?ype", "text/html");
+    bhttp_res_add_cookie(res, "cookietest1", "this is the value");
 
     bhttp_cookie * cookie = bhttp_req_get_cookie(req);
     if (cookie != NULL)

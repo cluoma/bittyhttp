@@ -10,6 +10,7 @@
 #define BITTYHTTP_RESPOND_H
 
 #include <stdio.h>
+#include "cookie.h"
 
 #define BHTTP_RES_CODES C(BHTTP_200_OK, "200 OK")                   \
                         C(BHTTP_204, "204 No Content" )             \
@@ -33,6 +34,7 @@ typedef struct bhttp_response {
     int response_code;
     /* headers */
     bvec headers;
+    bhttp_cookie * cookie;
     /* body */
     bhttp_response_body_type bodytype;
     bstr body;
@@ -44,7 +46,9 @@ void bhttp_response_free(bhttp_response *res);
 /* interface for handlers */
 int bhttp_res_add_header(bhttp_response *res, const char *field, const char *value);
 const bhttp_header *bhttp_res_get_header(bhttp_response *res, const char *field);
-const bvec *bhttp_res_get_all_headers(bhttp_response *res);
+const bvec * bhttp_res_get_all_headers(bhttp_response *res);
+int bhttp_res_add_cookie(bhttp_response *res, const char *field, const char *value);
+const bvec * bhttp_res_get_cookies(bhttp_response *res);
 int bhttp_res_set_body_text(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_rel(bhttp_response *res, const char *s);
 int bhttp_res_set_body_file_abs(bhttp_response *res, const char *s);
